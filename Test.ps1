@@ -35,11 +35,11 @@ function Initialize-TestDatabase
         $SqlCmd.CommandType = [System.Data.CommandType]::Text
 
         $SqlCmd.CommandText = ($DeleteDatabaseScript -f $TestDatabase)
-        $SqlCmd.CommandText
+        Write-Host $SqlCmd.CommandText
         [void]($SqlCmd.ExecuteNonQuery())
 
         $SqlCmd.CommandText = ($CreateDatabaseScript -f $TestDatabase)
-        $SqlCmd.CommandText
+        Write-Host $SqlCmd.CommandText
         [void]($SqlCmd.ExecuteNonQuery())
 
         $Connection.ChangeDatabase($TestDatabase)
@@ -66,3 +66,17 @@ function Initialize-TestDatabase
 
 $Connection = Initialize-TestDatabase $TestSqlServer 
 
+. (Join-Path $PSScriptRoot foo2.ps1)
+
+$outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
+$rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
+
+Initialize-PsDbDeploy -ServerName $TestSqlServer `
+                      -DatabaseName $TestDatabase `
+                      -RootFolderPath $rootFolderPath `
+                      -OutFolderPath $outFolderPath -EchoSql #-DisplayCallStack
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql `
+	| Add-SqlDbPatches -ExecuteOnce   
+
+Publish-Patches

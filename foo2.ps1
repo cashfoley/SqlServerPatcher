@@ -163,8 +163,6 @@ EXEC #MarkPatchExecuted @FilePath,@CheckSum,@Content
                 NewSqlCommand
                 ExecuteNonQuery $AssurePsDbDeployQuery
                 $script:PsDbDeployVersion = Get-PsDbDeployVersion
-                
-                AssurePsDbDeploy2
             }
         }
         export-ModuleMember -Function AssurePsDbDeploy
@@ -217,7 +215,7 @@ EXEC #MarkPatchExecuted @FilePath,@CheckSum,@Content
         Export-ModuleMember -Function TerminalError 
 
         # ----------------------------------------------------------------------------------
-        $ShaProvider = New-Object 'System.Security.Cryptography.SHA1CryptoServiceProvider'
+        $ShaProvider = New-Object 'System.Security.Cryptography.SHA256CryptoServiceProvider'
         $MD5Provider = New-Object 'System.Security.Cryptography.MD5CryptoServiceProvider'
         function GetFileChecksum ([System.IO.FileInfo] $fileInfo)
         {
@@ -515,16 +513,13 @@ function PerformPatches
             if (!$WhatIfExecute)
             {
                 $PatchContext.NewSqlCommand()
-                New-DbPatch -FilePath $Patch.PatchName -Checksum $Patch.Checksum -Content $Patch.patchContent
                 try
                 {
                     $PatchContext.ExecuteNonQuery( $Patch.patchContent )
-                    New-DbExecutionLog -FilePath $Patch.PatchName -Successful
                 }
                 Catch
                 {
                     $PatchContext.ExecuteNonQuery($PatchContext.Constants.RollbackTransactionScript)
-                    New-DbExecutionLog -FilePath $Patch.PatchName 
                     throw $_
                 }
             }
@@ -846,7 +841,7 @@ function Publish-Patches
                     {
                         $WhatIfExecute = $false
                     }
-                    PerformPatches $Patch $PatchContext $WhatIfExecute
+                    PerformPatches -Patches $Patch -PatchContext $PatchContext -WhatIfExecute:$WhatIfExecute
                 }
                 $QueuedPatches.RemoveAt(0)
             }
@@ -924,7 +919,7 @@ function Initialize-PsDbDeploy
     $QueuedPatches = $QueuedPatches.Clear()
     $TokenReplacements = @()
 
-    AssurePsDbDeploy
+    # AssurePsDbDeploy
 
 }
 
