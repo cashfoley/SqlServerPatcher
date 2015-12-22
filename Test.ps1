@@ -64,19 +64,141 @@ function Initialize-TestDatabase
 #
 #$Connection.State
 
-$Connection = Initialize-TestDatabase $TestSqlServer 
 
 . (Join-Path $PSScriptRoot foo2.ps1)
 
-$outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
-$rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
 
+function Test-ForPatches
+{
+     param
+     (
+         [Array] $TestPatchNames,
+
+         [int]   $TestPatchCount = 0,
+
+         [string] $Description='Verify Patches Included'
+     )
+
+    $PatchNames = $QueuedPatches | %{$_.PatchName}
+    Describe $Description {
+        if ($TestPatchCount -gt 0)
+        { 
+            It "Should contain $TestPatchCount Patches" {
+                ($PatchNames.Count) | Should be $TestPatchCount
+            }
+        }
+
+        foreach ($TestPatchName in $TestPatchNames)
+        {
+            It "Should contain $TestPatchName" {
+                $PatchNames -contains $TestPatchName | Should be $true
+            }
+        }
+    }
+
+}
+
+
+
+function InitDbPatches
+{
+     param
+     (
+         [string] $Environment = ''
+     )
+
+    $outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
+    $rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
+
+    Initialize-PsDbDeploy -ServerName $TestSqlServer `
+                          -DatabaseName $TestDatabase `
+                          -RootFolderPath $rootFolderPath `
+                          -OutFolderPath $outFolderPath `
+                          -Environment $Environment 
+}
+
+
+##############################################################################################################################
+
+[void](Initialize-TestDatabase $TestSqlServer)
+
+InitDbPatches
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
+
+Test-ForPatches -TestPatchCount 4 -TestPatchNames @(
+    'BeforeOneTime\01_SampleItems.sql'
+    'BeforeOneTime\02_ScriptsRun.sql'
+    'BeforeOneTime\03_ScriptsRunErrors.sql'
+    'BeforeOneTime\04_Version.sql'
+)
+
+
+Publish-Patches
+
+# ------------------------------------
+
+InitDbPatches
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce
+
+Describe 'Verify No Patches to be run after publish' {
+    It 'Should contain 0 Patches' {
+        ($QueuedPatches.Count) | Should be 0
+    }
+}
+
+
+##############################################################################################################################
+
+[void](Initialize-TestDatabase $TestSqlServer)
+
+InitDbPatches -Environment 'Dev'
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
+
+function Test-EnvironmentPatches
+{
+     param
+     (
+         [string] $Environment,
+         [int]    $TestPatchCount = 0
+     )
+
+    InitDbPatches -Environment $Environment
+
+    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
+
+    Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchCount $TestPatchCount -TestPatchNames @(
+        "BeforeOneTime\00_Initialize.($Environment).sql"
+        'BeforeOneTime\01_SampleItems.sql'
+        'BeforeOneTime\02_ScriptsRun.sql'
+        'BeforeOneTime\03_ScriptsRunErrors.sql'
+        'BeforeOneTime\04_Version.sql'
+    )
+}
+
+# ------------------------------------
+
+Test-EnvironmentPatches -Environment 'Dev' -TestPatchCount 5
+Test-EnvironmentPatches -Environment 'Test' -TestPatchCount 5
+Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
+
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -ExecuteOnce   
+
+
+
+<#
 Initialize-PsDbDeploy -ServerName $TestSqlServer `
                       -DatabaseName $TestDatabase `
                       -RootFolderPath $rootFolderPath `
-                      -OutFolderPath $outFolderPath -EchoSql #-DisplayCallStack
+                      -OutFolderPath $outFolderPath `
+                      #-Environment 'Dev' `
+                      #-EchoSql `
+                      #-DisplayCallStack
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql `
 	| Add-SqlDbPatches -ExecuteOnce   
 
 Publish-Patches
+#>

@@ -398,7 +398,7 @@ EXEC #MarkPatchExecuted @FilePath,@CheckSum,@Content
             # returns false if the basename ends with '(something)' and something doesn't match $Environment or if it is $null
             if ($file.basename -match ".*?\((?'fileEnv'.*?)\)$")
             {
-                ($Matches['fileEnv'] -ne $Environment)
+                ($Matches['fileEnv'] -eq $Environment)
             }
             else
             {
