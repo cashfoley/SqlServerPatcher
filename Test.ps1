@@ -74,17 +74,17 @@ function Test-ForPatches
      (
          [Array] $TestPatchNames,
 
-         [int]   $TestPatchCount = 0,
+         [switch] $PartialList,
 
          [string] $Description='Verify Patches Included'
      )
 
     $PatchNames = $QueuedPatches | %{$_.PatchName}
     Describe $Description {
-        if ($TestPatchCount -gt 0)
+        if (! $PartialList)
         { 
-            It "Should contain $TestPatchCount Patches" {
-                ($PatchNames.Count) | Should be $TestPatchCount
+            It "Should contain $($TestPatchNames.Count) Patches" {
+                ($PatchNames.Count) | Should be $TestPatchNames.Count
             }
         }
 
@@ -125,7 +125,7 @@ InitDbPatches
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
 
-Test-ForPatches -TestPatchCount 4 -TestPatchNames @(
+Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
     'BeforeOneTime\02_ScriptsRun.sql'
     'BeforeOneTime\03_ScriptsRunErrors.sql'
@@ -167,7 +167,7 @@ function Test-EnvironmentPatches
 
     Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
 
-    Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchCount $TestPatchCount -TestPatchNames @(
+    Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
         "BeforeOneTime\00_Initialize.($Environment).sql"
         'BeforeOneTime\01_SampleItems.sql'
         'BeforeOneTime\02_ScriptsRun.sql'
