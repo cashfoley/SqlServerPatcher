@@ -99,6 +99,8 @@ function Test-ForPatches
 }
 
 
+$outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
+$rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
 
 function InitDbPatches
 {
@@ -106,9 +108,6 @@ function InitDbPatches
      (
          [string] $Environment = ''
      )
-
-    $outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
-    $rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
 
     Initialize-PsDbDeploy -ServerName $TestSqlServer `
                           -DatabaseName $TestDatabase `
