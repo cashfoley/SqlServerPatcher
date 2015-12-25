@@ -1,390 +1,324 @@
 ﻿
-function Get-PatchContext ($ServerName, $DatabaseName, $RootFolderPath, $OutFolderPath, $DefaultConstants, [switch]$DisplayCallStack, $Environment)
+function TerminalError($Exception,$OptionalMsg)
 {
-    New-Module -AsCustomObject -ArgumentList $ServerName, $DatabaseName, $RootFolderPath, $OutFolderPath, $DefaultConstants, $DisplayCallStack, $Environment -ScriptBlock {
-        param
-        ( $DBServerNameParm
-        , $DatabaseNameParm
-        , $RootFolderPathParm
+    $ExceptionMessage = $Exception.Exception.Message;
+    if ($Exception.Exception.InnerException)
+    {
+        $ExceptionMessage = $Exception.Exception.InnerException.Message;
+    }
+    $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
+    $host.ui.WriteErrorLine($errorQueryMsg) 
+    
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # Temp 
+    $DisplayCallStack = $true
+
+    if ($DisplayCallStack)
+    {
+        $brkline = '=========================================================================='
+        $host.ui.WriteErrorLine($brkline)
+        $host.ui.WriteErrorLine('Stack calls')
+        $host.ui.WriteErrorLine($brkline)
+        $stack = Get-PSCallStack
+
+        $host.ui.WriteErrorLine("Location: $($Exception.InvocationInfo.PositionMessage)")
+        $host.ui.WriteErrorLine(" Command: $($stack[1].Command)")
+        #$host.ui.WriteErrorLine("Position: $($Exception.InvocationInfo.Line)")
+        $host.ui.WriteErrorLine($brkline)
+
+        for ($i = 1; $i -lt $stack.Count; $i++)
+        #foreach ($stackItem in $stack)
+        {
+            $stackItem = $stack[$i]
+            $host.ui.WriteErrorLine("Location: $($stackItem.Location)")
+            $host.ui.WriteErrorLine(" Command: $($stackItem.Command)")
+            $host.ui.WriteErrorLine("Position: $($stackItem.Position)")
+            $host.ui.WriteErrorLine($brkline)
+        }
+    }
+    Exit
+}
+
+#    New-Module -AsCustomObject -ArgumentList $ServerName, $DatabaseName, $RootFolderPath, $OutFolderPath, $DefaultConstants, $DisplayCallStack, $Environment -ScriptBlock {
+
+Class PatchContext
+{
+    [bool]      $DisplayCallStack
+    [hashtable] $SqlConstants
+
+    $OutPatchCount = 0
+    
+    $ThisPsDbDeployVersion = 1
+    $PsDbDeployVersion
+
+    [switch] $LogSqlOutScreen = $false
+    [string] $SqlLogFile = $null
+    [switch] $PublishWhatif = $false
+    [string] $Environment = $EnvironmentParm
+
+    [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
+    [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
+
+    [System.Text.RegularExpressions.Regex] $QueriesRegex  = `
+        ( New-Object System.Text.RegularExpressions.Regex `
+                     -ArgumentList ($this.QueriesExpression, [System.Text.RegularExpressions.RegexOptions]$this.QueriesRegexOptions))
+
+    [string] $DBServerName
+    [string] $DatabaseName
+    [int]    $DefaultCommandTimeout
+    [string] $RootFolderPath
+    $Connection
+    $SqlCommand
+    [array]  $TokenReplacements
+    [string] $OutFolderPath
+
+    PatchContext( $DBServerName
+        , $DatabaseName
+        , $RootFolderPath
         , $OutFolderPathParm
-        , $DefaultConstants
-        , $DisplayCallStackParm
         , $EnvironmentParm
         )
-        $ErrorActionPreference = 'Stop'
-        Set-StrictMode -Version 2
+    {
+        $this.Environment = $EnvironmentParm
 
-        $DisplayCallStack = $DisplayCallStackParm
+        $LoadSqlConstants = @()
+        Import-LocalizedData -BaseDirectory $PSScriptRoot -FileName SqlConstants.psd1 -BindingVariable LoadSqlConstants
+        $this.SqlConstants = $LoadSqlConstants
 
-        Import-LocalizedData -BaseDirectory $PSScriptRoot -FileName SqlConstants.psd1 -BindingVariable SqlConstants
 
-
-        #region Private Functions
-        # ----------------------------------------------------------------------------------
-
-        $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
-        $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
-        $QueriesRegex = New-Object System.Text.RegularExpressions.Regex -ArgumentList ($QueriesExpression, [System.Text.RegularExpressions.RegexOptions]$QueriesRegexOptions)
-
-        # ----------------------------------------------------------------------------------
-        # This fuction takes a string or an array of strings and parses SQL blocks
-        # Separated by 'GO' statements.   Go Statements must be the only word on
-        # the line.  The parser ignores GO statements inside /* ... */ comments.
-        function ParseSqlStrings ($SqlStrings)
-        {
-            $SqlString = $SqlStrings | Out-String
-
-            $SqlQueries = $QueriesRegex.Matches($SqlString)
-            foreach ($capture in $SqlQueries[0].Groups['Query'].Captures)
-            {
-                $capture.Value | ?{($_).trim().Length -gt 0}  # don't return empty strings
-            }
-        }
-
-        # ----------------------------------------------------------------------------------
-        function LogExecutedSql($SqlString)
-        {
-            if ($LogSqlOutScreen)
-            {
-                $SqlString,'GO' | Write-Output 
-            }
-            if ($SqlLogFile)
-            {
-                $SqlString,'GO' | Add-Content -Path $SqlLogFile
-            }
-        }
-        #endregion
+        $this.DBServerName = $DBServerName
+        $this.DatabaseName = $DatabaseName
+        $this.DefaultCommandTimeout = 180
         
-        #region Exported Functions
-
-
-        # ----------------------------------------------------------------------------------
-        function AssurePsDbDeploy
-        {
-            if ($PsDbDeployVersion -lt $ThisPsDbDeployVersion)
-            {
-                NewSqlCommand
-                ExecuteNonQuery $SqlConstants.AssurePsDbDeployQuery
-                $script:PsDbDeployVersion = Get-PsDbDeployVersion
-            }
-        }
-        export-ModuleMember -Function AssurePsDbDeploy
-        # ----------------------------------------------------------------------------------
-        function Get-PsDbDeployVersion
-        {
-            NewSqlCommand $SqlConstants.GetPsDbDeployVersion
-            $SqlCommand.ExecuteScalar()
-        }
-
-
-        # ----------------------------------------------------------------------------------
-        
-        function TerminalError($Exception,$OptionalMsg)
-        {
-            $ExceptionMessage = $Exception.Exception.Message;
-            if ($Exception.Exception.InnerException)
-            {
-                $ExceptionMessage = $Exception.Exception.InnerException.Message;
-            }
-            $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
-            $host.ui.WriteErrorLine($errorQueryMsg) 
-    
-            if ($DisplayCallStack)
-            {
-                $brkline = '=========================================================================='
-                $host.ui.WriteErrorLine($brkline)
-                $host.ui.WriteErrorLine('Stack calls')
-                $host.ui.WriteErrorLine($brkline)
-                $stack = Get-PSCallStack
-
-                $host.ui.WriteErrorLine("Location: $($Exception.InvocationInfo.PositionMessage)")
-                $host.ui.WriteErrorLine(" Command: $($stack[1].Command)")
-                #$host.ui.WriteErrorLine("Position: $($Exception.InvocationInfo.Line)")
-                $host.ui.WriteErrorLine($brkline)
-
-                for ($i = 1; $i -lt $stack.Count; $i++)
-                #foreach ($stackItem in $stack)
-                {
-                   $stackItem = $stack[$i]
-                   $host.ui.WriteErrorLine("Location: $($stackItem.Location)")
-                   $host.ui.WriteErrorLine(" Command: $($stackItem.Command)")
-                   $host.ui.WriteErrorLine("Position: $($stackItem.Position)")
-                   $host.ui.WriteErrorLine($brkline)
-                }
-            }
-            Exit
-        }
-
-        Export-ModuleMember -Function TerminalError 
-
-        # ----------------------------------------------------------------------------------
-        $ShaProvider = New-Object 'System.Security.Cryptography.SHA256CryptoServiceProvider'
-        $MD5Provider = New-Object 'System.Security.Cryptography.MD5CryptoServiceProvider'
-        function GetFileChecksum ([System.IO.FileInfo] $fileInfo)
-        {
-            $file = New-Object 'system.io.FileStream' ($fileInfo, [system.io.filemode]::Open, [system.IO.FileAccess]::Read)
-        
-            try
-            {
-                $shaHash = [system.Convert]::ToBase64String($ShaProvider.ComputeHash($file))  
-                #$file.Position =0
-                #$md5Hash = [system.Convert]::ToBase64String($MD5Provider.ComputeHash($file))  
-
-                #Sample: md5:'KJ5/LZAAzMmOzHn7rowksg==' sha:'LNa8s47m0pa8BUPmy8QNQsc/vdc=' length:006822
-                #"md5:'{0}' sha:'{1}' length:{2:d6}" -f $md5Hash,$shaHash,$fileInfo.Length
-                
-                '{0} {1:d7}' -f $shaHash,$fileInfo.Length
-            }
-            finally 
-            {
-                $file.Close()
-            }
-        }
-        Export-ModuleMember -Function GetFileChecksum 
-
-        # ----------------------------------------------------------------------------------
-        function GetChecksumForPatch($filePath)
-        {
-            if ($PsDbDeployVersion -gt 0)
-            {
-                NewSqlCommand $SqlConstants.ChecksumForPatchQuery
-                ($SqlCommand.Parameters.Add('@FilePath',$null)).value = $filePath
-                $SqlCommand.ExecuteScalar()
-            }
-            else
-            {
-                ''
-            }
-        }
-        Export-ModuleMember -Function GetChecksumForPatch 
-
-        # ----------------------------------------------------------------------------------
-        function GetPatchName( [string]$PatchFile )
-        {
-            if (! $Patchfile.StartsWith($RootFolderPath))
-            {
-                Throw ("Patchfile '{0}' not under RootFolder '{1}'" -f $PatchFile,$RootFolderPath)
-            }
-            $PatchFile.Replace($RootFolderPath, '')
-        }
-        Export-ModuleMember -Function GetPatchName 
-
-        # ----------------------------------------------------------------------------------
-        
-        function NewSqlCommand($CommandText='')
-        {
-            $NewSqlCmd = $Connection.CreateCommand()
-            $NewSqlCmd.CommandTimeout = $DefaultCommandTimeout
-            $NewSqlCmd.CommandType = [System.Data.CommandType]::Text
-            $NewSqlCmd.CommandText = $CommandText
-            $Script:SqlCommand = $NewSqlCmd
-        }
-        Export-ModuleMember -Function NewSqlCommand 
-
-        # ----------------------------------------------------------------------------------
-
-        function Get-DBServerName
-        {
-            $DBServerName
-        }
-        Export-ModuleMember -Function Get-DBServerName 
-
-        # ----------------------------------------------------------------------------------
-
-        function Get-DatabaseName
-        {
-            $DatabaseName
-        }
-        Export-ModuleMember -Function Get-DatabaseName 
-
-        # ----------------------------------------------------------------------------------
-        function ExecuteNonQuery($Query,[switch]$DontLogErrorQuery,[string]$ErrorMessage)
-        {
-            $ParsedQueries = ParseSqlStrings $Query
-            foreach ($ParsedQuery in $ParsedQueries)
-            {
-                if ($ParsedQuery.Trim() -ne '')
-                {
-                    LogExecutedSql $ParsedQuery
-                    if (! $PublishWhatIf)
-                    {
-                        try
-                        {
-                            $SqlCommand.CommandText=$ParsedQuery
-                            [void] $SqlCommand.ExecuteNonQuery()
-                        } 
-                        catch
-                        {
-                            TerminalError $_ $ParsedQuery
-                        }
-                    }
-                }
-            }
-        }
-        Export-ModuleMember -Function ExecuteNonQuery 
-
-        # ----------------------------------------------------------------------------------
-        function GetMarkPatchAsExecutedString($filePath, $Checksum, $Content)
-        {
-            $SqlConstants.MarkPatchAsExecutedQuery -f $filePath.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''")
-        }
-        Export-ModuleMember -Function GetMarkPatchAsExecutedString 
-
-        # ----------------------------------------------------------------------------------
-        function MarkPatchAsExecuted($filePath, $Checksum, $Content)
-        {
-            ExecuteNonQuery (GetMarkPatchAsExecutedString -filepath $filePath -checksum $Checksum -Content $Content )
-        }
-        Export-ModuleMember -Function MarkPatchAsExecuted 
-
-        # ----------------------------------------------------------------------------------
-        Function ParseSchemaAndObject($SourceStr, $ParseRegex)
-        {
-            function isNumeric ($x) {
-                $x2 = 0
-                $isNum = [System.Int32]::TryParse($x, [ref]$x2)
-                return $isNum
-            }
-
-            $GotMatches = $SourceStr -match $ParseRegex
-            $ParesedOwner = @{}
-            if ($GotMatches)
-            {
-                foreach ($key in $Matches.Keys)
-                {
-                    if (!(isNumeric $key))
-                    {
-                        $ParesedOwner[$key] =$Matches[$key]
-                    }
-                }
-            }
-
-            $GotMatches,$ParesedOwner
-        }
-        Export-ModuleMember -Function ParseSchemaAndObject 
-
-        # ----------------------------------------------------------------------------------
-        function ReplacePatternValues($text,$MatchSet)
-        {
-            foreach ($key in $MatchSet.Keys)
-            {
-                $source = '@(' + $key + ')'
-                $text = $text.Replace($source, $MatchSet[$key])
-            }
-            $text
-        }
-
-        Export-ModuleMember -Function ReplacePatternValues 
-
-        # ----------------------------------------------------------------------------------
-        function NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
-        {
-            New-Object -TypeName PSObject -Property (@{
-                PatchFile = $PatchFile
-                PatchName = $PatchName
-                CheckSum = $CheckSum
-                Content = $Content
-                CheckPoint = $CheckPoint
-                PatchContent = Get-Content $PatchFile | Out-String
-                #BeforeEachPatch = $BeforeEachPatch
-                #AfterEachPatch = $AfterEachPatch
-                PatchAttributes = @{}
-                #ErrorException = $null
-                }) 
-        }	
-        
-        Export-ModuleMember -Function NewPatchObject 
-
-        # ----------------------------------------------------------------------------------
-        function TestEnvironment([System.IO.FileInfo]$file)
-        {
-            # returns false if the basename ends with '(something)' and something doesn't match $Environment or if it is $null
-            if ($file.basename -match ".*?\((?'fileEnv'.*?)\)$")
-            {
-                ($Matches['fileEnv'] -eq $Environment)
-            }
-            else
-            {
-                $true
-            }
-        }
-
-        Export-ModuleMember -Function TestEnvironment 
-
-        # ----------------------------------------------------------------------------------
-        function OutPatchFile($Filename,$Content)
-        {
-            $script:OutPatchCount += 1
-            $outFileName = '{0:0000}-{1}' -f $OutPatchCount, ($Filename.Replace('\','-').Replace('/','-'))
-            $Content | Set-Content -Path (Join-Path $OutFolderPath $outFileName)
-        }
-
-        Export-ModuleMember -Function OutPatchFile 
-
-        #endregion
-        
-        # ----------------------------------------------------------------------------------
-        $DBServerName = $DBServerNameParm
-        $DatabaseName = $DatabaseNameParm
-        $DefaultCommandTimeout = 180
-        
-        if (!(Test-Path $RootFolderPathParm -PathType Container))
+        if (!(Test-Path $RootFolderPath -PathType Container))
         {
             Throw 'RootFolder is not folder - $RootFolderPathParm'
         }
         
-        $RootFolderPath = Join-Path $RootFolderPathParm '\'  # assure consitent \ on root folder name
-        Export-ModuleMember -Variable RootFolderPath 
-
-        $Constants = $DefaultConstants
-        Export-ModuleMember -Variable Constants 
+        $this.RootFolderPath = Join-Path $RootFolderPath '\'  # assure consitent \ on root folder name
         
         # Initialize Connection
         $IntegratedConnectionString = 'Data Source={0}; Initial Catalog={1}; Integrated Security=True;MultipleActiveResultSets=False;Application Name="SQL Management"'
-        $Connection = (New-Object 'System.Data.SqlClient.SqlConnection')
-        $Connection.ConnectionString = $IntegratedConnectionString -f $DBServerName,$DatabaseName
-        $Connection.Open()
-        Export-ModuleMember -Variable Connection 
+        $this.Connection = (New-Object 'System.Data.SqlClient.SqlConnection')
+        $this.Connection.ConnectionString = $IntegratedConnectionString -f $DBServerName,$DatabaseName
+        $this.Connection.Open()
 
         ## Attach the InfoMessage Event Handler to the connection to write out the messages 
         $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler] {
             param($sender, $event) 
             #Write-Host "----------------------------------------------------------------------------------------"
-            $event | FL
+            $event | Format-List
             Write-Host "    >$($event.Message)"
         };
          
-        $Connection.add_InfoMessage($handler); 
-        $Connection.FireInfoMessageEventOnUserErrors = $false;
+        $this.Connection.add_InfoMessage($handler); 
+        $this.Connection.FireInfoMessageEventOnUserErrors = $false;
 
-        $SqlCommand = NewSqlCommand
+        $this.SqlCommand = $this.NewSqlCommand()
 
-        $TokenReplacements = @()
-        Export-ModuleMember -Variable TokenReplacements
+        $this.TokenReplacements = @()
 
-        $OutFolderPath = Join-Path $OutFolderPathParm (get-date -Format yyyy-MM-dd-HH.mm.ss.fff)
-        if (! (Test-Path $OutFolderPath -PathType Container) )
+        $this.OutFolderPath = Join-Path $OutFolderPathParm (get-date -Format yyyy-MM-dd-HH.mm.ss.fff)
+        if (! (Test-Path $this.OutFolderPath -PathType Container) )
         {
-            mkdir $OutFolderPath | Out-Null
+            mkdir $this.OutFolderPath | Out-Null
         }
 
-        $OutPatchCount = 0
-    
-        $ThisPsDbDeployVersion = 1
-        $PsDbDeployVersion = Get-PsDbDeployVersion
-        $LogSqlOutScreen = $false
-        $SqlLogFile = $null
-        $PublishWhatif = $false
-        $Environment = $EnvironmentParm
+        $this.PsDbDeployVersion = $this.GetPsDbDeployVersion()
+    }
 
-        Export-ModuleMember -Variable SqlCommand 
-        Export-ModuleMember -Variable LogSqlOutScreen 
-        Export-ModuleMember -Variable PublishWhatif 
-        Export-ModuleMember -Variable SqlLogFile 
-        Export-ModuleMember -Variable OutFolderPath
-        Export-ModuleMember -Variable OutPatchCount
-        Export-ModuleMember -Variable Environment 
-        Export-ModuleMember -Function NewCommand
+    # ----------------------------------------------------------------------------------
+    # This fuction takes a string or an array of strings and parses SQL blocks
+    # Separated by 'GO' statements.   Go Statements must be the only word on
+    # the line.  The parser ignores GO statements inside /* ... */ comments.
+    hidden [array] ParseSqlStrings ([Object]$SqlStrings)
+    {
+        $SqlString = $SqlStrings | Out-String
+
+        $SqlQueries = $this.QueriesRegex.Matches($SqlString)
+        $ReturnValues = @()
+        foreach ($capture in $SqlQueries[0].Groups['Query'].Captures)
+        {
+            $ReturnValues += $capture.Value | Where-Object{($_).trim().Length -gt 0}  # don't return empty strings
+        }
+        return $ReturnValues
+    }
+
+    # ----------------------------------------------------------------------------------
+    hidden [array] LogExecutedSql($SqlString)
+    {
+        if ($this.LogSqlOutScreen)
+        {
+            return @($SqlString,'GO')
+        }
+
+        if ($this.SqlLogFile)
+        {
+            $SqlString,'GO' | Add-Content -Path $this.SqlLogFile
+        }
+        return $null
+    }
+
+    # ----------------------------------------------------------------------------------
+    [void] AssurePsDbDeploy()
+    {
+        if ($this.PsDbDeployVersion -lt $this.ThisPsDbDeployVersion)
+        {
+            $this.NewSqlCommand()
+            $this.ExecuteNonQuery($this.SqlConstants.AssurePsDbDeployQuery)
+            $this.PsDbDeployVersion = $this.GetPsDbDeployVersion
+        }
+    }
+
+    # ----------------------------------------------------------------------------------
+    [int] GetPsDbDeployVersion()
+    {
+        $this.NewSqlCommand($this.SqlConstants.GetPsDbDeployVersion)
+        return $this.SqlCommand.ExecuteScalar()
+    }
+
+    # ----------------------------------------------------------------------------------
+    [string] GetFileChecksum ([System.IO.FileInfo] $fileInfo)
+    {
+        $ShaProvider = (New-Object 'System.Security.Cryptography.SHA256CryptoServiceProvider')
+        $file = New-Object 'system.io.FileStream' ($fileInfo, [system.io.filemode]::Open, [system.IO.FileAccess]::Read)
+        try
+        {
+            $shaHash = [system.Convert]::ToBase64String($ShaProvider.ComputeHash($file))  
+            return '{0} {1:d7}' -f $shaHash,$fileInfo.Length
+        }
+        finally 
+        {
+            $file.Close()
+        }
+    }
+
+    # ----------------------------------------------------------------------------------
+    [string] GetChecksumForPatch($filePath)
+    {
+        if ($this.PsDbDeployVersion -gt 0)
+        {
+            $this.NewSqlCommand($this.SqlConstants.ChecksumForPatchQuery)
+            ($this.SqlCommand.Parameters.Add('@FilePath',$null)).value = $filePath
+            return $this.SqlCommand.ExecuteScalar()
+        }
+        else
+        {
+            return ''
+        }
+    }
+    # ----------------------------------------------------------------------------------
+    [string] GetPatchName( [string]$PatchFile )
+    {
+        if (! $Patchfile.StartsWith($this.RootFolderPath))
+        {
+            Throw ("Patchfile '{0}' not under RootFolder '{1}'" -f $PatchFile,$this.RootFolderPath)
+        }
+        return $PatchFile.Replace($this.RootFolderPath, '')
+    }
+
+    # ----------------------------------------------------------------------------------
+    [void] NewSqlCommand($CommandText='')
+    {
+        $NewSqlCmd = $this.Connection.CreateCommand()
+        $NewSqlCmd.CommandTimeout = $this.DefaultCommandTimeout
+        $NewSqlCmd.CommandType = [System.Data.CommandType]::Text
+        $NewSqlCmd.CommandText = $CommandText
+        $this.SqlCommand = $NewSqlCmd
+    }
+    
+    [void] NewSqlCommand()
+    {
+        $this.NewSqlCommand('')
+    }
+    
+    # ----------------------------------------------------------------------------------
+    [string] GetDBServerName()
+    {
+        return $this.DBServerName
+    }
+
+    [string] GetDatabaseName()
+    {
+        return $this.DatabaseName
+    }
+
+    # ----------------------------------------------------------------------------------
+
+    [void] ExecuteNonQuery($Query,[switch]$DontLogErrorQuery,[string]$ErrorMessage)
+    {
+        $ParsedQueries = $this.ParseSqlStrings($Query)
+        foreach ($ParsedQuery in $ParsedQueries)
+        {
+            if ($ParsedQuery.Trim() -ne '')
+            {
+                $this.LogExecutedSql($ParsedQuery)
+                if (! $this.PublishWhatIf)
+                {
+                    try
+                    {
+                        $this.SqlCommand.CommandText = $ParsedQuery
+                        [void] $this.SqlCommand.ExecuteNonQuery()
+                    } 
+                    catch
+                    {
+                        TerminalError $_ $ParsedQuery
+                    }
+                }
+            }
+        }
+    }
+
+    [void] ExecuteNonQuery($Query)
+    {
+        $this.ExecuteNonQuery($Query,$false,'')
+    }
+
+    # ----------------------------------------------------------------------------------
+    [string] GetMarkPatchAsExecutedString($filePath, $Checksum, $Content)
+    {
+        return $this.SqlConstants.MarkPatchAsExecutedQuery -f $filePath.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''")
+    }
+
+    # ----------------------------------------------------------------------------------
+    [void] MarkPatchAsExecuted($filePath, $Checksum, $Content)
+    {
+        $this.ExecuteNonQuery($this.GetMarkPatchAsExecutedString($filePath,$Checksum, $Content))
+    }
+
+    # ----------------------------------------------------------------------------------
+    [object] NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
+    {
+        return New-Object -TypeName PSObject -Property (@{
+            PatchFile = $PatchFile
+            PatchName = $PatchName
+            CheckSum = $CheckSum
+            Content = $Content
+            CheckPoint = $CheckPoint
+            PatchContent = Get-Content $PatchFile | Out-String
+            PatchAttributes = @{}
+            }) 
+    }	
+    # ----------------------------------------------------------------------------------
+    [bool] TestEnvironment([System.IO.FileInfo]$file)
+    {
+        # returns false if the basename ends with '(something)' and something doesn't match $Environment or if it is $null
+        if ($file.basename -match ".*?\((?'fileEnv'.*?)\)$")
+        {
+            return ($Matches['fileEnv'] -eq $this.Environment)
+        }
+        else
+        {
+            return $true
+        }
+    }
+
+    # ----------------------------------------------------------------------------------
+    [void] OutPatchFile($Filename,$Content)
+    {
+        $this.OutPatchCount += 1
+        $outFileName = '{0:0000}-{1}' -f $this.OutPatchCount, ($Filename.Replace('\','-').Replace('/','-'))
+        $Content | Set-Content -Path (Join-Path $this.OutFolderPath $outFileName)
     }
 }
 
@@ -422,7 +356,7 @@ function PerformPatches
                 }
                 Catch
                 {
-                    $PatchContext.ExecuteNonQuery($PatchContext.Constants.RollbackTransactionScript)
+                    $PatchContext.ExecuteNonQuery($PatchContext.SqlConstants.RollbackTransactionScript)
                     throw $_
                 }
             }
@@ -531,7 +465,7 @@ function Add-SqlDbPatches
                             $BeforeEachPatchStr = ''
                             $AfterEachPatchStr = ''
 
-                            $Patch = $PatchContext.NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment,'','')
+                            $Patch = $PatchContext.NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
 
                             # Annoying use of multiple output
                             # ParseSchemaAndObject verifies match and returns Match Keys.
@@ -578,12 +512,12 @@ function Add-SqlDbPatches
                                     $script + "`nGO`n"
                                 }
                             }
-                            $Patch.PatchContent = (GoScript $PatchContext.Constants.BeginTransctionScript) + 
+                            $Patch.PatchContent = (GoScript $PatchContext.SqlConstants.BeginTransctionScript) + 
                                                   (GoScript $BeforeEachPatchStr) + 
                                                   (GoScript (ReplaceTokens $Patch.PatchContent)) + 
                                                   (GoScript $AfterEachPatchStr) + 
                                                   (GoScript $PatchContext.GetMarkPatchAsExecutedString($Patch.PatchName, $Patch.Checksum, '')) +
-                                                  (GoScript $PatchContext.Constants.EndTransactionScript)
+                                                  (GoScript $PatchContext.SqlConstants.EndTransactionScript)
                         }
                     }
                     else
@@ -600,7 +534,7 @@ function Add-SqlDbPatches
         }
         Catch
         {
-            $PatchContext.TerminalError($_)
+            TerminalError $_
         }
     }
 }
@@ -625,32 +559,6 @@ $PublishWhatIf = $false
 $DBPatchContext = @{}
 
 $QueuedPatches = New-Object -TypeName System.Collections.ArrayList
-
-#region Patches_Settings
-# ----------------------------------------------------------------------------------
-$DefaultConstants = @{
-    #-----------------------------------------------------------------------------------------------
-    BeginTransctionScript = @"
-SET XACT_ABORT ON
-SET TRANSACTION ISOLATION LEVEL READ COMMITTED
-SET ANSI_NULLS, ANSI_PADDING, ANSI_WARNINGS, ARITHABORT, CONCAT_NULL_YIELDS_NULL, QUOTED_IDENTIFIER ON;
-SET NUMERIC_ROUNDABORT OFF;
-BEGIN TRANSACTION;
-"@
-# Useful for Debug
-# PRINT N'Transaction Count - ' + CAST (@@TRANCOUNT+1 AS varchar) 
-
-    #-----------------------------------------------------------------------------------------------
-    EndTransactionScript = @"
-IF @@ERROR <> 0 AND @@TRANCOUNT >  0 WHILE @@TRANCOUNT>0 ROLLBACK TRANSACTION;
-WHILE @@TRANCOUNT > 0 COMMIT TRANSACTION;
-"@
-    RollbackTransactionScript = @"
-WHILE @@TRANCOUNT>0 ROLLBACK TRANSACTION;
-"@
-}
-#endregion
-
 
 # ----------------------------------------------------------------------------------
 function ExecuteValidators
@@ -683,18 +591,6 @@ function ExecuteValidators
         }
     }
 }
-
-# ----------------------------------------------------------------------------------
-# function Checkpoint-PatchFile( $PatchName, $Comment='Checkpoint' )
-# {
-#     $PatchFile = Join-Path $PatchContext.RootFolderPath $PatchName
-# 
-#     $Checksum = FileChecksum $PatchFile
-#     
-#     MarkPatchAsExecuted $PatchName $Checksum $Comment
-# }
-# 
-# ----------------------------------------------------------------------------------
 
 function ExecutePatchBatch
 {
@@ -751,7 +647,7 @@ function Publish-Patches
         }
         Catch
         {
-            $PatchContext.TerminalError($_)
+            TerminalError $_
         }
         $PatchContext.Connection.Close()
     }
@@ -814,7 +710,9 @@ function Initialize-PsDbDeploy
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = Get-PatchContext -ServerName $ServerName -DatabaseName $DatabaseName -RootFolderPath $RootFolderPath -OutFolderPath $OutFolderPath -Environment $Environment -DefaultConstants $DefaultConstants -DisplayCallStack $DisplayCallStack
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment)
+    
+    $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
     $PatchContext.SqlLogFile = $SqlLogFile
     $PatchContext.PublishWhatIf = $PublishWhatIf

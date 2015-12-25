@@ -103,4 +103,30 @@ SELECT CheckSum
 
     MarkPatchAsExecutedQuery = "EXEC #MarkPatchExecuted N'{0}',N'{1}',N'{2}'"
 
+############################################################################################################################
+
+    BeginTransctionScript = @"
+SET XACT_ABORT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+SET ANSI_NULLS, ANSI_PADDING, ANSI_WARNINGS, ARITHABORT, CONCAT_NULL_YIELDS_NULL, QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
+BEGIN TRANSACTION;
+"@
+# Useful for Debug
+# PRINT N'Transaction Count - ' + CAST (@@TRANCOUNT+1 AS varchar) 
+
+############################################################################################################################
+
+    EndTransactionScript = @"
+IF @@ERROR <> 0 AND @@TRANCOUNT >  0 WHILE @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+WHILE @@TRANCOUNT > 0 COMMIT TRANSACTION;
+"@
+
+############################################################################################################################
+
+    RollbackTransactionScript = @"
+WHILE @@TRANCOUNT>0 ROLLBACK TRANSACTION;
+"@
+
+
 }

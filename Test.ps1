@@ -1,5 +1,7 @@
 ﻿Import-Module Pester
 
+cls
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
@@ -35,11 +37,11 @@ function Initialize-TestDatabase
         $SqlCmd.CommandType = [System.Data.CommandType]::Text
 
         $SqlCmd.CommandText = ($DeleteDatabaseScript -f $TestDatabase)
-        Write-Host $SqlCmd.CommandText
+        Write-Verbose $SqlCmd.CommandText
         [void]($SqlCmd.ExecuteNonQuery())
 
         $SqlCmd.CommandText = ($CreateDatabaseScript -f $TestDatabase)
-        Write-Host $SqlCmd.CommandText
+        Write-Verbose $SqlCmd.CommandText
         [void]($SqlCmd.ExecuteNonQuery())
 
         $Connection.ChangeDatabase($TestDatabase)
