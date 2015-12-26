@@ -125,7 +125,7 @@ function InitDbPatches
 
 InitDbPatches
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose   
 
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
@@ -140,7 +140,7 @@ Publish-Patches
 # ------------------------------------
 
 InitDbPatches
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose
 
 Describe 'Verify No Patches to be run after publish' {
     It 'Should contain 0 Patches' {
@@ -148,6 +148,7 @@ Describe 'Verify No Patches to be run after publish' {
     }
 }
 
+Publish-Patches
 
 ##############################################################################################################################
 
@@ -155,7 +156,7 @@ Describe 'Verify No Patches to be run after publish' {
 
 InitDbPatches -Environment 'Dev'
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose   
 
 function Test-EnvironmentPatches
 {
@@ -167,7 +168,7 @@ function Test-EnvironmentPatches
 
     InitDbPatches -Environment $Environment
 
-    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce   
+    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose   
 
     Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
         "BeforeOneTime\00_Initialize.($Environment).sql"
@@ -185,7 +186,7 @@ Test-EnvironmentPatches -Environment 'Test' -TestPatchCount 5
 Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
 
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -ExecuteOnce   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -ExecuteOnce -Verbose   
 
 
 
@@ -199,7 +200,7 @@ Initialize-PsDbDeploy -ServerName $TestSqlServer `
                       #-DisplayCallStack
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql `
-	| Add-SqlDbPatches -ExecuteOnce   
+	| Add-SqlDbPatches -ExecuteOnce -Verbose   
 
 Publish-Patches
 #>

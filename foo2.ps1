@@ -1,4 +1,6 @@
 ﻿
+
+
 function TerminalError($Exception,$OptionalMsg)
 {
     $ExceptionMessage = $Exception.Exception.Message;
@@ -39,7 +41,29 @@ function TerminalError($Exception,$OptionalMsg)
     Exit
 }
 
-#    New-Module -AsCustomObject -ArgumentList $ServerName, $DatabaseName, $RootFolderPath, $OutFolderPath, $DefaultConstants, $DisplayCallStack, $Environment -ScriptBlock {
+
+class PatchFile
+{
+    $PatchFile
+    $PatchName
+    $CheckSum
+    $Content
+    $CheckPoint
+    $PatchContent
+    $PatchAttributes = @{}
+
+    PatchFile ($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
+    {
+        $this.PatchFile = $PatchFile
+        $this.PatchName = $PatchName
+        $this.CheckSum = $CheckSum
+        $this.Content = $Content
+        $this.CheckPoint = $CheckPoint
+        $this.PatchContent = Get-Content $PatchFile | Out-String
+        $this.PatchAttributes = @{}
+     }
+
+}
 
 Class PatchContext
 {
@@ -287,18 +311,18 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [object] NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
-    {
-        return New-Object -TypeName PSObject -Property (@{
-            PatchFile = $PatchFile
-            PatchName = $PatchName
-            CheckSum = $CheckSum
-            Content = $Content
-            CheckPoint = $CheckPoint
-            PatchContent = Get-Content $PatchFile | Out-String
-            PatchAttributes = @{}
-            }) 
-    }	
+    #[object] NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
+    #{
+    #    return New-Object -TypeName PSObject -Property (@{
+    #        PatchFile = $PatchFile
+    #        PatchName = $PatchName
+    #        CheckSum = $CheckSum
+    #        Content = $Content
+    #        CheckPoint = $CheckPoint
+    #        PatchContent = Get-Content $PatchFile | Out-String
+    #        PatchAttributes = @{}
+    #        }) 
+    #}	
     # ----------------------------------------------------------------------------------
     [bool] TestEnvironment([System.IO.FileInfo]$file)
     {
@@ -465,8 +489,8 @@ function Add-SqlDbPatches
                             $BeforeEachPatchStr = ''
                             $AfterEachPatchStr = ''
 
-                            $Patch = $PatchContext.NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
-
+                            #$Patch = $PatchContext.NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
+                            $Patch = [PatchFile]::new($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
                             # Annoying use of multiple output
                             # ParseSchemaAndObject verifies match and returns Match Keys.
                             # No keys are a valid result on a match
