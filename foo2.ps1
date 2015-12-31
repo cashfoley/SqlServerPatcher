@@ -42,7 +42,7 @@ function TerminalError($Exception,$OptionalMsg)
 }
 
 
-class PatchFile
+class Patch
 {
     $PatchFile
     $PatchName
@@ -52,15 +52,32 @@ class PatchFile
     $PatchContent
     $PatchAttributes = @{}
 
-    PatchFile ($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
+    # ----------------------------------------------------------------------------------
+    [string] GetFileChecksum ([System.IO.FileInfo] $fileInfo)
+    {
+        $ShaProvider = (New-Object 'System.Security.Cryptography.SHA256CryptoServiceProvider')
+        $file = New-Object 'system.io.FileStream' ($fileInfo, [system.io.filemode]::Open, [system.IO.FileAccess]::Read)
+        try
+        {
+            $shaHash = [system.Convert]::ToBase64String($ShaProvider.ComputeHash($file))  
+            return '{0} {1:d7}' -f $shaHash,$fileInfo.Length
+        }
+        finally 
+        {
+            $file.Close()
+        }
+    }
+
+    Patch ($PatchFile,$PatchName,$CheckPoint,$Content)
     {
         $this.PatchFile = $PatchFile
         $this.PatchName = $PatchName
-        $this.CheckSum = $CheckSum
         $this.Content = $Content
         $this.CheckPoint = $CheckPoint
         $this.PatchContent = Get-Content $PatchFile | Out-String
         $this.PatchAttributes = @{}
+
+        $this.CheckSum = $This.GetFileChecksum($PatchFile)
      }
 
 }
@@ -202,22 +219,6 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [string] GetFileChecksum ([System.IO.FileInfo] $fileInfo)
-    {
-        $ShaProvider = (New-Object 'System.Security.Cryptography.SHA256CryptoServiceProvider')
-        $file = New-Object 'system.io.FileStream' ($fileInfo, [system.io.filemode]::Open, [system.IO.FileAccess]::Read)
-        try
-        {
-            $shaHash = [system.Convert]::ToBase64String($ShaProvider.ComputeHash($file))  
-            return '{0} {1:d7}' -f $shaHash,$fileInfo.Length
-        }
-        finally 
-        {
-            $file.Close()
-        }
-    }
-
-    # ----------------------------------------------------------------------------------
     [string] GetChecksumForPatch($filePath)
     {
         if ($this.PsDbDeployVersion -gt 0)
@@ -310,19 +311,6 @@ Class PatchContext
         $this.ExecuteNonQuery($this.GetMarkPatchAsExecutedString($filePath,$Checksum, $Content))
     }
 
-    # ----------------------------------------------------------------------------------
-    #[object] NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Content)
-    #{
-    #    return New-Object -TypeName PSObject -Property (@{
-    #        PatchFile = $PatchFile
-    #        PatchName = $PatchName
-    #        CheckSum = $CheckSum
-    #        Content = $Content
-    #        CheckPoint = $CheckPoint
-    #        PatchContent = Get-Content $PatchFile | Out-String
-    #        PatchAttributes = @{}
-    #        }) 
-    #}	
     # ----------------------------------------------------------------------------------
     [bool] TestEnvironment([System.IO.FileInfo]$file)
     {
@@ -471,13 +459,12 @@ function Add-SqlDbPatches
                 }
                 else
                 {
-                    $Checksum = $PatchContext.GetFileChecksum($PatchFile)
-                    Write-Verbose "`$Checksum: $Checksum"
-
+                    $Patch = [Patch]::new($PatchFile,$PatchName,$CheckPoint,$Comment)
+                    
                     $PatchCheckSum = [string]($PatchContext.GetChecksumForPatch($PatchName))
             
                     $ApplyPatch = $false
-                    if ($Checksum -ne $PatchCheckSum -or $Force)
+                    if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
                     {
                         if ($ExecuteOnce -and ($PatchCheckSum -ne ''))
                         {
@@ -490,7 +477,6 @@ function Add-SqlDbPatches
                             $AfterEachPatchStr = ''
 
                             #$Patch = $PatchContext.NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
-                            $Patch = [PatchFile]::new($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
                             # Annoying use of multiple output
                             # ParseSchemaAndObject verifies match and returns Match Keys.
                             # No keys are a valid result on a match
