@@ -44,6 +44,7 @@ function TerminalError($Exception,$OptionalMsg)
 
 class Patch
 {
+    $PatchContext
     $PatchFile
     $PatchName
     $CheckSum
@@ -68,18 +69,39 @@ class Patch
         }
     }
 
-    Patch ($PatchFile,$PatchName,$CheckPoint,$Content)
+    hidden [string] GoScript([string]$script)
     {
+        if ($script)
+        {
+            return ($script + "`nGO`n")
+        }
+        else
+        {
+            return ''
+        }
+    }
+
+    hidden [void] SetPatchContent()
+    {
+        $fileContent = Get-Content $this.PatchFile | Out-String
+        $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
+                             ($this.GoScript((ReplaceTokens $fileContent))) + 
+                             ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
+                             ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
+    }
+
+    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName,$CheckPoint,$Content)
+    {
+        $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
         $this.PatchName = $PatchName
         $this.Content = $Content
         $this.CheckPoint = $CheckPoint
-        $this.PatchContent = Get-Content $PatchFile | Out-String
         $this.PatchAttributes = @{}
 
         $this.CheckSum = $This.GetFileChecksum($PatchFile)
+        $this.SetPatchContent()
      }
-
 }
 
 Class PatchContext
@@ -386,57 +408,12 @@ function Add-SqlDbPatches
     PARAM
     ( [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
       [system.IO.FileInfo[]]$PatchFiles
-    
-    , [string]$BeforeEachPatch
-    , [string]$AfterEachPatch
     , [switch]$ExecuteOnce
     , [switch]$CheckPoint
-    , [string]$FileNamePattern
-
-    , [ValidateSet('Function','View','Procedure')]
-      [string]$FileContentPatternTemplate
-    , [string]$FileContentPattern
-
     , [string]$Comment
     , [switch]$Force
     )
  
-    Begin
-    {
-        $SchemaObjectPattern = "(\s*)(((\[(?'schema'[^\]]*))\])|(?'schema'[^\.[\]]*))\.(((\[(?'object'[^\]]*))\])|(?'object'[^ ]*))"
-        switch ($FileContentPatternTemplate)
-        {
-            'Function' 
-            {
-                $FileContentPattern = "CREATE\s+FUNCTION$SchemaObjectPattern"
-                $BeforeEachPatch = @" 
-    IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[@(schema)].[@(object)]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
-    DROP FUNCTION [@(schema)].[@(object)]
-"@
-                break;
-            }
-
-            'View' 
-            {
-                $FileContentPattern = "CREATE\s+VIEW$SchemaObjectPattern"
-                $BeforeEachPatch = @" 
-    IF  EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[@(schema)].[@(object)]'))
-    DROP VIEW [@(schema)].[@(object)]
-"@
-                break;
-            }
-
-            'Procedure' 
-            {
-                $FileContentPattern = "CREATE\s+(PROCEDURE|PROC)$SchemaObjectPattern"
-                $BeforeEachPatch = @" 
-    IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[@(schema)].[@(object)]') AND type in (N'P', N'PC'))
-    DROP PROCEDURE [@(schema)].[@(object)]
-"@
-                break;
-            }
-        }					
-    }
     Process 
     {
         try
@@ -459,11 +436,10 @@ function Add-SqlDbPatches
                 }
                 else
                 {
-                    $Patch = [Patch]::new($PatchFile,$PatchName,$CheckPoint,$Comment)
+                    $Patch = [Patch]::new($PatchContext,$PatchFile,$PatchName,$CheckPoint,$Comment)
                     
                     $PatchCheckSum = [string]($PatchContext.GetChecksumForPatch($PatchName))
             
-                    $ApplyPatch = $false
                     if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
                     {
                         if ($ExecuteOnce -and ($PatchCheckSum -ne ''))
@@ -472,72 +448,12 @@ function Add-SqlDbPatches
                         }
                         else
                         {
-                            $ApplyPatch = $true
-                            $BeforeEachPatchStr = ''
-                            $AfterEachPatchStr = ''
-
-                            #$Patch = $PatchContext.NewPatchObject($PatchFile,$PatchName,$Checksum,$CheckPoint,$Comment)
-                            # Annoying use of multiple output
-                            # ParseSchemaAndObject verifies match and returns Match Keys.
-                            # No keys are a valid result on a match
-                            $ObjectKeys = @()
-                            if ($FileNamePattern)
-                            {
-                                Write-Verbose "Evaluate FilenamePattern '$FileNamePattern'"
-                                $ApplyPatch, $ObjectKeys = $PatchContext.ParseSchemaAndObject($PatchFile,$FileNamePattern)
-                                if (!$ApplyPatch)
-                                {
-                                    Write-Warning "FileNamePattern does not match patch '$PatchName' - Patch not executed"
-                                }
-                                else
-                                {
-                                    $BeforeEachPatchStr = $PatchContext.ReplacePatternValues($BeforeEachPatch, $ObjectKeys)
-                                    Write-Verbose "`BeforeEachPatch: $($BeforeEachPatchStr)"
-                                    $AfterEachPatchStr = $PatchContext.ReplacePatternValues($AfterEachPatch, $ObjectKeys)
-                                    Write-Verbose "`AfterEachPatch: $($AfterEachPatchStr)"
-                                }
-                            }
-                    
-                            if ($FileContentPattern -and $ApplyPatch)
-                            {
-                                Write-Verbose "Evaluate FileContentPattern '$FileContentPattern'"
-                                $ApplyPatch, $ObjectKeys = $PatchContext.ParseSchemaAndObject($Patch.PatchContent, $FileContentPattern)
-                                if (!$ApplyPatch)
-                                {
-                                    Write-Warning "FileContentPattern does not match content in patch '$PatchName' - Patch not executed"
-                                }
-                                else
-                                {
-                                    $BeforeEachPatchStr = $PatchContext.ReplacePatternValues($BeforeEachPatch, $ObjectKeys)
-                                    Write-Verbose "`BeforeEachPatch: $($BeforeEachPatchStr)"
-                                    $AfterEachPatchStr = $PatchContext.ReplacePatternValues($AfterEachPatch, $ObjectKeys)
-                                    Write-Verbose "`AfterEachPatch: $($AfterEachPatchStr)"
-                                }
-                            }
-
-                            function GoScript($script)
-                            {
-                                if ($script)
-                                {
-                                    $script + "`nGO`n"
-                                }
-                            }
-                            $Patch.PatchContent = (GoScript $PatchContext.SqlConstants.BeginTransctionScript) + 
-                                                  (GoScript $BeforeEachPatchStr) + 
-                                                  (GoScript (ReplaceTokens $Patch.PatchContent)) + 
-                                                  (GoScript $AfterEachPatchStr) + 
-                                                  (GoScript $PatchContext.GetMarkPatchAsExecutedString($Patch.PatchName, $Patch.Checksum, '')) +
-                                                  (GoScript $PatchContext.SqlConstants.EndTransactionScript)
+                            [void]$QueuedPatches.Add($Patch) 
                         }
                     }
                     else
                     {
                         Write-Verbose "Patch $PatchName current" 
-                    }
-
-                    if ($ApplyPatch -or $Force)
-                    {
-                        [void]$QueuedPatches.Add($Patch) 
                     }
                 }
             }
