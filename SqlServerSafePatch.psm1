@@ -464,6 +464,8 @@ function Add-SqlDbPatches
     }
 }
 
+Export-ModuleMember -Function Add-SqlDbPatches
+
 #region License
 
 $LicenseMessage = @"
@@ -484,6 +486,8 @@ $PublishWhatIf = $false
 $DBPatchContext = @{}
 
 $QueuedPatches = New-Object -TypeName System.Collections.ArrayList
+
+Export-ModuleMember -Variable QueuedPatches
 
 # ----------------------------------------------------------------------------------
 function ExecuteValidators
@@ -578,6 +582,8 @@ function Publish-Patches
     }
 }
 
+Export-ModuleMember -Function Publish-Patches
+
 # ----------------------------------------------------------------------------------
 
 function Add-TokenReplacement 
@@ -596,6 +602,8 @@ function Add-TokenReplacement
         ReplacementValue = $ReplacementValue
     }
 }
+
+Export-ModuleMember -Function Add-TokenReplacemen
 
 # ----------------------------------------------------------------------------------
 
@@ -646,7 +654,7 @@ function Initialize-PsDbDeploy
     $TokenReplacements = @()
 
     # AssurePsDbDeploy
-
 }
 
+Export-ModuleMember -Function Initialize-PsDbDeploy
 

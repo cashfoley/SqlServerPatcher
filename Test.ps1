@@ -67,8 +67,7 @@ function Initialize-TestDatabase
 #$Connection.State
 
 
-. (Join-Path $PSScriptRoot foo2.ps1)
-
+Import-Module (Join-Path $PSScriptRoot 'SqlServerSafePatch.psm1') -Force
 
 function Test-ForPatches
 {
@@ -162,7 +161,7 @@ $Connection = Initialize-TestDatabase $TestSqlServer
 
 InitDbPatches -Environment 'Dev'
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
 function Test-EnvironmentPatches
 {
@@ -174,7 +173,7 @@ function Test-EnvironmentPatches
 
     InitDbPatches -Environment $Environment
 
-    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
+    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
     Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
         "BeforeOneTime\00_Initialize.($Environment).sql"
@@ -192,7 +191,7 @@ Test-EnvironmentPatches -Environment 'Test' -TestPatchCount 5
 Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
 
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -Verbose   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches #-Verbose   
 
 ##############################################################################################################################
 
@@ -200,7 +199,7 @@ Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | 
 
 InitDbPatches
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
@@ -209,11 +208,11 @@ Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\04_Version.sql'
 )
 
-Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Verify Tables got created'
+Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created'
 
 Publish-Patches
 
-Test-ForSqlObjects -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Verify Tables got created'
+Test-ForSqlObjects -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables got created'
 
 # ------------------------------------
 
