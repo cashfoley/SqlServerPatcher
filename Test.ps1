@@ -100,6 +100,43 @@ function Test-ForPatches
 
 }
 
+function Test-ForSqlObjects
+{
+     param
+     (
+         [Array] $ObjectNames,
+         [string] $objectType = 'U',
+         [switch] $TestDoesntExist,
+
+         [string] $Description='Verify Sql Objects'
+     )
+    $ObjectIdForObjectSql = "SELECT OBJECT_ID(N'{0}', N'{1}')"
+
+    $SqlCmd = $Connection.CreateCommand()
+    $SqlCmd.CommandType = [System.Data.CommandType]::Text
+
+    if ($TestDoesntExist)
+    {
+        $TestMessage = 'Verify {0} does not exist'
+    }
+    else
+    {
+        $TestMessage = 'Verify {0} exists'
+    }
+
+    Describe $Description {
+        foreach ($ObjectName in $ObjectNames)
+        {
+            $SqlCmd.CommandText = ($ObjectIdForObjectSql -f $objectName,$objectType)
+            $ObjectId = $SqlCmd.ExecuteScalar()
+            $ObjectDoesNotExist = $ObjectId -is [System.DBNull]
+            It ($TestMessage -f $ObjectName) {
+                $ObjectDoesNotExist | Should be $TestDoesntExist
+            }
+        }
+    }
+}
+
 
 $outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
 $rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
@@ -121,38 +158,7 @@ function InitDbPatches
 
 ##############################################################################################################################
 
-[void](Initialize-TestDatabase $TestSqlServer)
-
-InitDbPatches
-
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
-
-Test-ForPatches -TestPatchNames @(
-    'BeforeOneTime\01_SampleItems.sql'
-    'BeforeOneTime\02_ScriptsRun.sql'
-    'BeforeOneTime\03_ScriptsRunErrors.sql'
-    'BeforeOneTime\04_Version.sql'
-)
-
-
-Publish-Patches
-
-# ------------------------------------
-
-InitDbPatches
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose
-
-Describe 'Verify No Patches to be run after publish' {
-    It 'Should contain 0 Patches' {
-        ($QueuedPatches.Count) | Should be 0
-    }
-}
-
-Publish-Patches
-
-##############################################################################################################################
-
-[void](Initialize-TestDatabase $TestSqlServer)
+$Connection = Initialize-TestDatabase $TestSqlServer
 
 InitDbPatches -Environment 'Dev'
 
@@ -187,6 +193,43 @@ Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
 
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -Verbose   
+
+##############################################################################################################################
+
+# $Connection = Initialize-TestDatabase $TestSqlServer
+
+InitDbPatches
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
+
+Test-ForPatches -TestPatchNames @(
+    'BeforeOneTime\01_SampleItems.sql'
+    'BeforeOneTime\02_ScriptsRun.sql'
+    'BeforeOneTime\03_ScriptsRunErrors.sql'
+    'BeforeOneTime\04_Version.sql'
+)
+
+Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Verify Tables got created'
+
+Publish-Patches
+
+Test-ForSqlObjects -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Verify Tables got created'
+
+# ------------------------------------
+
+InitDbPatches
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches 
+
+Describe 'Verify No Patches to be run after publish' {
+    It 'Should contain 0 Patches' {
+        ($QueuedPatches.Count) | Should be 0
+    }
+}
+
+Publish-Patches
+
+##############################################################################################################################
+
 
 
 
