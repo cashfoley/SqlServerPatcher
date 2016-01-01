@@ -147,7 +147,7 @@ function InitDbPatches
          [string] $Environment = ''
      )
 
-    Initialize-PsDbDeploy -ServerName $TestSqlServer `
+    Initialize-SqlServerSafePatch -ServerName $TestSqlServer `
                           -DatabaseName $TestDatabase `
                           -RootFolderPath $rootFolderPath `
                           -OutFolderPath $outFolderPath `
@@ -230,19 +230,3 @@ Publish-Patches
 ##############################################################################################################################
 
 
-
-
-<#
-Initialize-PsDbDeploy -ServerName $TestSqlServer `
-                      -DatabaseName $TestDatabase `
-                      -RootFolderPath $rootFolderPath `
-                      -OutFolderPath $outFolderPath `
-                      #-Environment 'Dev' `
-                      #-EchoSql `
-                      #-DisplayCallStack
-
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql `
-	| Add-SqlDbPatches -Verbose   
-
-Publish-Patches
-#>

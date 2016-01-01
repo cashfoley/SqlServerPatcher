@@ -111,8 +111,8 @@ Class PatchContext
 
     $OutPatchCount = 0
     
-    $ThisPsDbDeployVersion = 1
-    $PsDbDeployVersion
+    $ThisSqlServerSafePatchVersion = 1
+    $SqlServerSafePatchVersion
 
     [switch] $LogSqlOutScreen = $false
     [string] $SqlLogFile = $null
@@ -187,7 +187,7 @@ Class PatchContext
             mkdir $this.OutFolderPath | Out-Null
         }
 
-        $this.PsDbDeployVersion = $this.GetPsDbDeployVersion()
+        $this.SqlServerSafePatchVersion = $this.GetSqlServerSafePatchVersion()
     }
 
     # ----------------------------------------------------------------------------------
@@ -223,27 +223,27 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [void] AssurePsDbDeploy()
+    [void] AssureSqlServerSafePatch()
     {
-        if ($this.PsDbDeployVersion -lt $this.ThisPsDbDeployVersion)
+        if ($this.SqlServerSafePatchVersion -lt $this.ThisSqlServerSafePatchVersion)
         {
             $this.NewSqlCommand()
-            $this.ExecuteNonQuery($this.SqlConstants.AssurePsDbDeployQuery)
-            $this.PsDbDeployVersion = $this.GetPsDbDeployVersion
+            $this.ExecuteNonQuery($this.SqlConstants.AssureSqlServerSafePatchQuery)
+            $this.SqlServerSafePatchVersion = $this.GetSqlServerSafePatchVersion
         }
     }
 
     # ----------------------------------------------------------------------------------
-    [int] GetPsDbDeployVersion()
+    [int] GetSqlServerSafePatchVersion()
     {
-        $this.NewSqlCommand($this.SqlConstants.GetPsDbDeployVersion)
+        $this.NewSqlCommand($this.SqlConstants.GetSqlServerSafePatchVersion)
         return $this.SqlCommand.ExecuteScalar()
     }
 
     # ----------------------------------------------------------------------------------
     [string] GetChecksumForPatch($filePath)
     {
-        if ($this.PsDbDeployVersion -gt 0)
+        if ($this.SqlServerSafePatchVersion -gt 0)
         {
             $this.NewSqlCommand($this.SqlConstants.ChecksumForPatchQuery)
             ($this.SqlCommand.Parameters.Add('@FilePath',$null)).value = $filePath
@@ -469,13 +469,13 @@ Export-ModuleMember -Function Add-SqlDbPatches
 #region License
 
 $LicenseMessage = @"
-PsDbDeploy - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
-Copyright (C) 2013-14 Cash Foley Software Consulting LLC
+SqlServerSafePatch - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
+Copyright (C) 2013-16 Cash Foley Software Consulting LLC
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  GNU General Public License for more details.
- https://psdbdeploy.codeplex.com/license
+ https://SqlServerSafePatch.codeplex.com/license
 "@
 #endregion
 
@@ -548,7 +548,7 @@ function Publish-Patches
         }
         try
         {
-            $PatchContext.AssurePsDbDeploy()
+            $PatchContext.AssureSqlServerSafePatch()
             while ($QueuedPatches.Count -gt 0)
             {
                 $Patch = $QueuedPatches[0]
@@ -609,7 +609,7 @@ Export-ModuleMember -Function Add-TokenReplacemen
 
 $PatchContext = $null
 
-function Initialize-PsDbDeploy
+function Initialize-SqlServerSafePatch
 {
     [CmdletBinding(
             SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium'
@@ -653,8 +653,8 @@ function Initialize-PsDbDeploy
     $QueuedPatches = $QueuedPatches.Clear()
     $TokenReplacements = @()
 
-    # AssurePsDbDeploy
+    # AssureSqlServerSafePatch
 }
 
-Export-ModuleMember -Function Initialize-PsDbDeploy
+Export-ModuleMember -Function Initialize-SqlServerSafePatch
 

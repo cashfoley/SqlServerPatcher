@@ -2,22 +2,22 @@
 
 ############################################################################################################################
 
-    AssurePsDbDeployQuery = @"
--- Adds PsDbDeploy Objects if they don't exist
---    SCHEMA [PsDbDeploy]
---    TABLE [PsDbDeploy].[FilePatches]
+    AssureSqlServerSafePatchQuery = @"
+-- Adds SqlServerSafePatch Objects if they don't exist
+--    SCHEMA [SqlServerSafePatch]
+--    TABLE [SqlServerSafePatch].[FilePatches]
 --    PROCEDURE #MarkPatchExecuted
 
 BEGIN TRANSACTION;
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'PsDbDeploy')
-EXEC sys.sp_executesql N'CREATE SCHEMA [PsDbDeploy] AUTHORIZATION [dbo]'
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'SqlServerSafePatch')
+EXEC sys.sp_executesql N'CREATE SCHEMA [SqlServerSafePatch] AUTHORIZATION [dbo]'
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[PsDbDeploy].[FilePatches]') AND type in (N'U'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerSafePatch].[FilePatches]') AND type in (N'U'))
 BEGIN
-CREATE TABLE [PsDbDeploy].[FilePatches](
+CREATE TABLE [SqlServerSafePatch].[FilePatches](
     [OID]        [bigint]   IDENTITY(1,1) NOT NULL,
     [FilePath]   [nvarchar] (450) NOT NULL,
     [Applied]    [datetime] NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE [PsDbDeploy].[FilePatches](
     [LogOutput]  [nvarchar] (MAX)
 ) ON [PRIMARY]
     
-CREATE UNIQUE NONCLUSTERED INDEX [UIDX_PsDbDeployFilePatches_FilePath] ON [PsDbDeploy].[FilePatches]
+CREATE UNIQUE NONCLUSTERED INDEX [UIDX_SqlServerSafePatchFilePatches_FilePath] ON [SqlServerSafePatch].[FilePatches]
 (
     [FilePath] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
@@ -48,13 +48,13 @@ EXEC dbo.sp_executesql @statement = N'
         DECLARE @OID bigint
 
         SELECT @OID=OID
-            FROM [PsDbDeploy].[FilePatches]
+            FROM [SqlServerSafePatch].[FilePatches]
             WHERE FilePath = @FilePath
 
         IF  (@@ROWCOUNT = 0)
         BEGIN
             INSERT 
-                INTO [PsDbDeploy].[FilePatches]
+                INTO [SqlServerSafePatch].[FilePatches]
                     ( [FilePath]
                     , [Applied]
                     , [CheckSum]
@@ -65,7 +65,7 @@ EXEC dbo.sp_executesql @statement = N'
                     , @Content)
         END
         ELSE BEGIN
-            UPDATE [PsDbDeploy].[FilePatches]
+            UPDATE [SqlServerSafePatch].[FilePatches]
                 SET CheckSum=@CheckSum
                     , Applied=GetDate()
                     , Content=@Content
@@ -82,8 +82,8 @@ COMMIT TRANSACTION;
 
 ############################################################################################################################
 
-    GetPsDbDeployVersion = @"
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[PsDbDeploy].[FilePatches]') AND type in (N'U'))
+    GetSqlServerSafePatchVersion = @"
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerSafePatch].[FilePatches]') AND type in (N'U'))
 BEGIN
     SELECT 1
 END
@@ -95,7 +95,7 @@ END
 ############################################################################################################################
     ChecksumForPatchQuery = @"
 SELECT CheckSum
-    FROM [PsDbDeploy].[FilePatches]
+    FROM [SqlServerSafePatch].[FilePatches]
     WHERE FilePath = @FilePath
 "@
 
