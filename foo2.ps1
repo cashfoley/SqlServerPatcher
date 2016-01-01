@@ -44,11 +44,12 @@ function TerminalError($Exception,$OptionalMsg)
 
 class Patch
 {
+    hidden $Content
+
     $PatchContext
     $PatchFile
     $PatchName
     $CheckSum
-    $Content
     $CheckPoint
     $PatchContent
     $PatchAttributes = @{}
@@ -90,12 +91,11 @@ class Patch
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
 
-    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName,$CheckPoint,$Content)
+    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName,$CheckPoint)
     {
         $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
         $this.PatchName = $PatchName
-        $this.Content = $Content
         $this.CheckPoint = $CheckPoint
         $this.PatchAttributes = @{}
 
@@ -410,7 +410,6 @@ function Add-SqlDbPatches
       [system.IO.FileInfo[]]$PatchFiles
     , [switch]$ReExecuteOnChange
     , [switch]$CheckPoint
-    , [string]$Comment
     , [switch]$Force
     )
  
@@ -436,7 +435,7 @@ function Add-SqlDbPatches
                 }
                 else
                 {
-                    $Patch = [Patch]::new($PatchContext,$PatchFile,$PatchName,$CheckPoint,$Comment)
+                    $Patch = [Patch]::new($PatchContext,$PatchFile,$PatchName,$CheckPoint)
                     
                     $PatchCheckSum = [string]($PatchContext.GetChecksumForPatch($PatchName))
             
