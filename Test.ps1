@@ -125,7 +125,7 @@ function InitDbPatches
 
 InitDbPatches
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
 
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
@@ -140,7 +140,7 @@ Publish-Patches
 # ------------------------------------
 
 InitDbPatches
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose
 
 Describe 'Verify No Patches to be run after publish' {
     It 'Should contain 0 Patches' {
@@ -156,7 +156,7 @@ Publish-Patches
 
 InitDbPatches -Environment 'Dev'
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
 
 function Test-EnvironmentPatches
 {
@@ -168,7 +168,7 @@ function Test-EnvironmentPatches
 
     InitDbPatches -Environment $Environment
 
-    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -ExecuteOnce -Verbose   
+    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Verbose   
 
     Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
         "BeforeOneTime\00_Initialize.($Environment).sql"
@@ -186,7 +186,7 @@ Test-EnvironmentPatches -Environment 'Test' -TestPatchCount 5
 Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
 
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -ExecuteOnce -Verbose   
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches -Verbose   
 
 
 
@@ -200,7 +200,7 @@ Initialize-PsDbDeploy -ServerName $TestSqlServer `
                       #-DisplayCallStack
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql `
-	| Add-SqlDbPatches -ExecuteOnce -Verbose   
+	| Add-SqlDbPatches -Verbose   
 
 Publish-Patches
 #>

@@ -408,7 +408,7 @@ function Add-SqlDbPatches
     PARAM
     ( [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
       [system.IO.FileInfo[]]$PatchFiles
-    , [switch]$ExecuteOnce
+    , [switch]$ReExecuteOnChange
     , [switch]$CheckPoint
     , [string]$Comment
     , [switch]$Force
@@ -442,7 +442,7 @@ function Add-SqlDbPatches
             
                     if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
                     {
-                        if ($ExecuteOnce -and ($PatchCheckSum -ne ''))
+                        if (!$ReExecuteOnChange -and ($PatchCheckSum -ne ''))
                         {
                             Write-Warning "Patch $PatchName has changed but will be ignored"
                         }
