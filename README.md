@@ -2,7 +2,7 @@
 
 This PowerShell Module contains CmdLets for execting SQL Patches with Microsoft SQL Server
 
-With SqlServerPatcher you can easily manage the execution of Sql Patches through multiple environments.
+With SqlServerPatcher you can easily manage pipeline deployments of Sql Patches through multiple environments.
 
 For example, if you have a directory where you put scripts that should only be executed once in each environment, you create a folder
 for containing them, and put the '.sql' files in the folder.  They will be executed alphabetically so the easiest way to manage 
@@ -20,7 +20,7 @@ Import-Module SqlServerPatcher
 $rootFolder = Join-Path $PSScriptRoot 'PatchFolder'
 Initialize-SqlServerSafePatch -ServerName '.' -DatabaseName 'TestDB' -RootFolderPath $rootFolderPath
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches 
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlServerPatch 
 
 Publish-Patches
 ```
@@ -31,6 +31,18 @@ If you were to add another file '03_AddColumnToMasterTable.sql' then the next ti
 third script.
 
 If you were to configure another Database, it would execute all three scripts.
+
+## Major Features
+
+1. Execute scripts once in an environment.
+2. Execute scripts everytime they change.  This is great for Stored Procedures and Views.
+3. Execute scripts everytime you have deployments.
+3. Environment Specific Scripts.
+4. Token Replacement in scripts.
+5. WhatIf Deployments shows scripts that need to be performed.
+
+As a native PowerShell module, it works intuitively with your PowerShell deployment scripts.  It does not have complicated configuration files and hardcoded rules and folders.  By simply piping filesystem items into Add-SqlServerPatch, you control the order of patches and the actions associated with them.
+
 
 
 
