@@ -14,16 +14,19 @@ order is to put numbers in front of each Patch File.
 
 To deploy these scripts to a local server in a database named _TestDB_, you would execute the following code.
 
+----
+
 ```powershell
 Import-Module SqlServerPatcher
 
 $rootFolder = Join-Path $PSScriptRoot 'PatchFolder'
-Initialize-SqlServerSafePatch -ServerName '.' -DatabaseName 'TestDB' -RootFolderPath $rootFolderPath
+Initialize-SqlServerPatcher -ServerName '.' -DatabaseName 'TestDB' -RootFolderPath $rootFolderPath
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlServerPatch 
 
 Publish-Patches
 ```
+----
 
 The first time you execute the script, it would execute both files.  If you were to execute it again, they would not be executed.
 
@@ -35,9 +38,13 @@ If you were to configure another Database, it would execute all three scripts.
 ## Major Features
 
 1. Execute scripts once in an environment.
-2. Execute scripts everytime they change.  This is great for Stored Procedures and Views.
+2. Execute scripts everytime they change.  
+   This is great for Stored Procedures and Views.
 3. Execute scripts everytime you have deployments.
 3. Environment Specific Scripts.
+4. Scripts executed only when Patches are necessary.
+   (Not implemented yet)
+   This is ideal for kicking off backups and other preporation when patches will be applied.
 4. Token Replacement in scripts.
 5. WhatIf Deployments shows scripts that need to be performed.
 
