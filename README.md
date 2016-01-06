@@ -12,7 +12,7 @@ order is to put numbers in front of each Patch File.
   - 01_InitialSchema.sql
   - 02_CreateIndexes.sql
 
-To deploy these scripts to a local server in a database named *TestDB*, you would execute the following code.
+To deploy these scripts to a local server in a database named _TestDB_, you would execute the following code.
 
 ```powershell
 Import-Module SqlServerPatcher
@@ -27,7 +27,7 @@ Publish-Patches
 
 The first time you execute the script, it would execute both files.  If you were to execute it again, they would not be executed.
 
-If you were to add another file 03_AddColumnToMasterTable.sql then the next time you performed the script it would execute just the 
+If you were to add another file '03_AddColumnToMasterTable.sql' then the next time you performed the script it would execute just the 
 third script.
 
 If you were to configure another Database, it would execute all three scripts.
