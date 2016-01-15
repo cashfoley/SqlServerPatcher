@@ -104,6 +104,46 @@ class Patch
      }
 }
 
+class QueuedPatches {
+
+    hidden $Patches
+
+    QueuedPatches()
+    {
+        $this.Patches  = New-Object -TypeName System.Collections.ArrayList
+    }
+
+    [array] Where([bool] $criteria)
+    {
+        return $this.Patches.Where({$criteria})
+    }
+
+    [void] AddPatch([patch] $Patch)
+    {
+        $this.Patches.Add($Patch)
+    }
+
+    [int] GetPatchCount()
+    {
+        return $this.Patches.count
+    }
+
+    [void] Clear()
+    {
+        $this.Patches.clear()
+    }
+
+    [patch] GetTopPatch()
+    {
+        return $this.Patches[0]
+    }
+
+    [void] RemoveTopPatch()
+    {
+        $this.Patches.RemoveAt(0)    
+    }
+}
+
 Class PatchContext
 {
     [bool]      $DisplayCallStack
