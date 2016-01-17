@@ -104,44 +104,30 @@ class Patch
      }
 }
 
-class QueuedPatches {
+class QueuedPatches : System.Collections.ArrayList {
 
     hidden $Patches
 
     QueuedPatches()
     {
-        $this.Patches  = New-Object -TypeName System.Collections.ArrayList
-    }
-
-    [array] Where([bool] $criteria)
-    {
-        return $this.Patches.Where({$criteria})
+        #$this.Patches  = New-Object -TypeName System.Collections.ArrayList
     }
 
     [void] AddPatch([patch] $Patch)
     {
-        $this.Patches.Add($Patch)
-    }
-
-    [int] GetPatchCount()
-    {
-        return $this.Patches.count
-    }
-
-    [void] Clear()
-    {
-        $this.Patches.clear()
+        $this.Add($Patch)
     }
 
     [patch] GetTopPatch()
     {
-        return $this.Patches[0]
+        return $this[0]
     }
 
     [void] RemoveTopPatch()
     {
-        $this.Patches.RemoveAt(0)    
+        $this.RemoveAt(0)    
     }
+
 }
 
 Class PatchContext
@@ -487,7 +473,7 @@ function Add-SqlDbPatches
                         }
                         else
                         {
-                            [void]$QueuedPatches.Add($Patch) 
+                            [void]$QueuedPatches.AddPatch($Patch) 
                         }
                     }
                     else
@@ -525,7 +511,7 @@ $PublishWhatIf = $false
 
 $DBPatchContext = @{}
 
-$QueuedPatches = New-Object -TypeName System.Collections.ArrayList
+$QueuedPatches = [QueuedPatches]::New()
 
 Export-ModuleMember -Variable QueuedPatches
 
@@ -591,7 +577,7 @@ function Publish-Patches
             $PatchContext.AssureSqlServerSafePatch()
             while ($QueuedPatches.Count -gt 0)
             {
-                $Patch = $QueuedPatches[0]
+                $Patch = $QueuedPatches.GetTopPatch()
                 
                 $PatchContext.NewSqlCommand()
                 if ($Patch.CheckPoint)
@@ -611,7 +597,7 @@ function Publish-Patches
                     }
                     PerformPatches -Patches $Patch -PatchContext $PatchContext -WhatIfExecute:$WhatIfExecute
                 }
-                $QueuedPatches.RemoveAt(0)
+                $QueuedPatches.RemoveTopPatch()
             }
         }
         Catch
