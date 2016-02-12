@@ -1,4 +1,5 @@
 ﻿
+# ----------------------------------------------------------------------------------
 
 
 function TerminalError($Exception,$OptionalMsg)
@@ -104,13 +105,20 @@ class Patch
      }
 }
 
+[CmdletBinding(
+    SupportsShouldProcess=$True,ConfirmImpact=’Medium’
+)]
 class QueuedPatches : System.Collections.ArrayList {
 
-    hidden $Patches
+    [PatchContext]$PatchContext
 
     QueuedPatches()
     {
-        #$this.Patches  = New-Object -TypeName System.Collections.ArrayList
+    }
+
+    [void]SetPatchContext($PatchContext)
+    {
+        $this.PatchContext = $PatchContext
     }
 
     [void] AddPatch([patch] $Patch)
@@ -127,6 +135,49 @@ class QueuedPatches : System.Collections.ArrayList {
     {
         $this.RemoveAt(0)    
     }
+
+    [void] PerformPatches()
+    {
+            if ($this.Count -eq 0)
+        {
+            Write-Host -Object '    No Patches to Apply'
+            return
+        }
+        try
+        {
+            $this.PatchContext.AssureSqlServerSafePatch()
+            while ($this.Count -gt 0)
+            {
+                $Patch = $this.GetTopPatch()
+                
+                $this.PatchContext.NewSqlCommand()
+                if ($Patch.CheckPoint)
+                {
+                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
+                    {
+                        # Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
+                        $this.PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
+                    }
+                }
+                else
+                {
+                    $WhatIfExecute = $TRUE
+                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Publish Patch')) 
+                    {
+                        $WhatIfExecute = $false
+                    }
+                    PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$WhatIfExecute
+                }
+                $this.RemoveTopPatch()
+            }
+        }
+        Catch
+        {
+            TerminalError $_
+        }
+        $this.PatchContext.Connection.Close()
+    }
+
 
 }
 
@@ -455,7 +506,7 @@ function Add-SqlDbPatches
                 {
                     Write-Verbose "`$PatchName ignored because it is the wrong target environment"
                 }
-                elseif ($QueuedPatches.Where({$_.PatchName -eq $PatchName}))
+                elseif ($script:QueuedPatches.Where({$_.PatchName -eq $PatchName}))
                 {
                     Write-Verbose "`$PatchName ignored because it is already queued"
                 }
@@ -473,7 +524,7 @@ function Add-SqlDbPatches
                         }
                         else
                         {
-                            [void]$QueuedPatches.AddPatch($Patch) 
+                            [void]$script:QueuedPatches.AddPatch($Patch) 
                         }
                     }
                     else
@@ -507,15 +558,6 @@ Copyright (C) 2013-16 Cash Foley Software Consulting LLC
 
 # ----------------------------------------------------------------------------------
 
-$PublishWhatIf = $false
-
-$DBPatchContext = @{}
-
-$QueuedPatches = [QueuedPatches]::New()
-
-Export-ModuleMember -Variable QueuedPatches
-
-# ----------------------------------------------------------------------------------
 function ExecuteValidators
 {
      param
@@ -564,48 +606,8 @@ function Publish-Patches
     )]
  
     param () 
+    $script:QueuedPatches.PerformPatches()
 
-    process 
-    {
-        if ($QueuedPatches.Count -eq 0)
-        {
-            Write-Host -Object '    No Patches to Apply'
-            return
-        }
-        try
-        {
-            $PatchContext.AssureSqlServerSafePatch()
-            while ($QueuedPatches.Count -gt 0)
-            {
-                $Patch = $QueuedPatches.GetTopPatch()
-                
-                $PatchContext.NewSqlCommand()
-                if ($Patch.CheckPoint)
-                {
-                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
-                    {
-                        # Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
-                        $PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
-                    }
-                }
-                else
-                {
-                    $WhatIfExecute = $TRUE
-                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Publish Patch')) 
-                    {
-                        $WhatIfExecute = $false
-                    }
-                    PerformPatches -Patches $Patch -PatchContext $PatchContext -WhatIfExecute:$WhatIfExecute
-                }
-                $QueuedPatches.RemoveTopPatch()
-            }
-        }
-        Catch
-        {
-            TerminalError $_
-        }
-        $PatchContext.Connection.Close()
-    }
 }
 
 Export-ModuleMember -Function Publish-Patches
@@ -676,11 +678,19 @@ function Initialize-SqlServerSafePatch
     $PatchContext.SqlLogFile = $SqlLogFile
     $PatchContext.PublishWhatIf = $PublishWhatIf
 
-    $QueuedPatches = $QueuedPatches.Clear()
+    $script:QueuedPatches = [QueuedPatches]::New()
+
+    $script:QueuedPatches.SetPatchContext($script:PatchContext)
     $TokenReplacements = @()
 
     # AssureSqlServerSafePatch
 }
 
 Export-ModuleMember -Function Initialize-SqlServerSafePatch
+
+$PublishWhatIf = $false
+
+[QueuedPatches]$QueuedPatches = [QueuedPatches]::New()
+
+Export-ModuleMember -Variable QueuedPatches
 

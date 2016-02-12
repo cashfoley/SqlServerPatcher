@@ -1,4 +1,6 @@
 ﻿Import-Module Pester
+Import-Module (Join-Path $PSScriptRoot 'SqlServerSafePatch.psm1') -Force
+
 
 cls
 
@@ -65,9 +67,6 @@ function Initialize-TestDatabase
 #}
 #
 #$Connection.State
-
-
-Import-Module (Join-Path $PSScriptRoot 'SqlServerSafePatch.psm1') -Force
 
 function Test-ForPatches
 {
