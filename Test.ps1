@@ -1,8 +1,8 @@
 ﻿Import-Module Pester
-Import-Module (Join-Path $PSScriptRoot 'SqlServerSafePatch.psm1') -Force
+Import-Module $PSScriptRoot -Force
 
 
-cls
+#cls
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2

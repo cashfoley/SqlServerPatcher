@@ -1,48 +1,5 @@
 ﻿
 # ----------------------------------------------------------------------------------
-
-
-function TerminalError($Exception,$OptionalMsg)
-{
-    $ExceptionMessage = $Exception.Exception.Message;
-    if ($Exception.Exception.InnerException)
-    {
-        $ExceptionMessage = $Exception.Exception.InnerException.Message;
-    }
-    $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
-    $host.ui.WriteErrorLine($errorQueryMsg) 
-    
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # Temp 
-    $DisplayCallStack = $true
-
-    if ($DisplayCallStack)
-    {
-        $brkline = '=========================================================================='
-        $host.ui.WriteErrorLine($brkline)
-        $host.ui.WriteErrorLine('Stack calls')
-        $host.ui.WriteErrorLine($brkline)
-        $stack = Get-PSCallStack
-
-        $host.ui.WriteErrorLine("Location: $($Exception.InvocationInfo.PositionMessage)")
-        $host.ui.WriteErrorLine(" Command: $($stack[1].Command)")
-        #$host.ui.WriteErrorLine("Position: $($Exception.InvocationInfo.Line)")
-        $host.ui.WriteErrorLine($brkline)
-
-        for ($i = 1; $i -lt $stack.Count; $i++)
-        #foreach ($stackItem in $stack)
-        {
-            $stackItem = $stack[$i]
-            $host.ui.WriteErrorLine("Location: $($stackItem.Location)")
-            $host.ui.WriteErrorLine(" Command: $($stackItem.Command)")
-            $host.ui.WriteErrorLine("Position: $($stackItem.Position)")
-            $host.ui.WriteErrorLine($brkline)
-        }
-    }
-    Exit
-}
-
-
 class Patch
 {
     hidden $Content
@@ -63,6 +20,7 @@ class Patch
         try
         {
             $shaHash = [system.Convert]::ToBase64String($ShaProvider.ComputeHash($file))  
+            #  To Do - combine read file with compute checksum
             return '{0} {1:d7}' -f $shaHash,$fileInfo.Length
         }
         finally 
@@ -82,12 +40,20 @@ class Patch
             return ''
         }
     }
+    hidden [string] ReplaceTokens([string]$str)
+    {
+        foreach ($TokenReplacement in $this.PatchContext.TokenReplacements)
+        {
+            $str = $str.Replace($TokenReplacement.TokenValue,$TokenReplacement.ReplacementValue)
+        }
+        return $str
+    }
 
     hidden [void] SetPatchContent()
     {
         $fileContent = Get-Content $this.PatchFile | Out-String
         $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                             ($this.GoScript((ReplaceTokens $fileContent))) + 
+                             ($this.GoScript($this.ReplaceTokens($fileContent))) + 
                              ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
@@ -105,82 +71,7 @@ class Patch
      }
 }
 
-[CmdletBinding(
-    SupportsShouldProcess=$True,ConfirmImpact=’Medium’
-)]
-class QueuedPatches : System.Collections.ArrayList {
-
-    [PatchContext]$PatchContext
-
-    QueuedPatches()
-    {
-    }
-
-    [void]SetPatchContext($PatchContext)
-    {
-        $this.PatchContext = $PatchContext
-    }
-
-    [void] AddPatch([patch] $Patch)
-    {
-        $this.Add($Patch)
-    }
-
-    [patch] GetTopPatch()
-    {
-        return $this[0]
-    }
-
-    [void] RemoveTopPatch()
-    {
-        $this.RemoveAt(0)    
-    }
-
-    [void] PerformPatches()
-    {
-            if ($this.Count -eq 0)
-        {
-            Write-Host -Object '    No Patches to Apply'
-            return
-        }
-        try
-        {
-            $this.PatchContext.AssureSqlServerSafePatch()
-            while ($this.Count -gt 0)
-            {
-                $Patch = $this.GetTopPatch()
-                
-                $this.PatchContext.NewSqlCommand()
-                if ($Patch.CheckPoint)
-                {
-                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
-                    {
-                        # Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
-                        $this.PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
-                    }
-                }
-                else
-                {
-                    $WhatIfExecute = $TRUE
-                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Publish Patch')) 
-                    {
-                        $WhatIfExecute = $false
-                    }
-                    PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$WhatIfExecute
-                }
-                $this.RemoveTopPatch()
-            }
-        }
-        Catch
-        {
-            TerminalError $_
-        }
-        $this.PatchContext.Connection.Close()
-    }
-
-
-}
-
+# ----------------------------------------------------------------------------------
 Class PatchContext
 {
     [bool]      $DisplayCallStack
@@ -433,15 +324,127 @@ Class PatchContext
     }
 }
 
-function ReplaceTokens([string]$str)
-{
-    foreach ($TokenReplacement in $PatchContext.TokenReplacements)
+# ----------------------------------------------------------------------------------
+
+[CmdletBinding(
+    SupportsShouldProcess=$True,ConfirmImpact=’Medium’
+)]
+class QueuedPatches : System.Collections.ArrayList {
+
+    [PatchContext]$PatchContext
+
+    QueuedPatches()
     {
-        $str = $str.Replace($TokenReplacement.TokenValue,$TokenReplacement.ReplacementValue)
     }
-    $str
+
+    [void]SetPatchContext($PatchContext)
+    {
+        $this.PatchContext = $PatchContext
+    }
+
+    [void] AddPatch([patch] $Patch)
+    {
+        $this.Add($Patch)
+    }
+
+    [patch] GetTopPatch()
+    {
+        return $this[0]
+    }
+
+    [void] RemoveTopPatch()
+    {
+        $this.RemoveAt(0)    
+    }
+
+    [void] PerformPatches()
+    {
+            if ($this.Count -eq 0)
+        {
+            Write-Host -Object '    No Patches to Apply'
+            return
+        }
+        try
+        {
+            $this.PatchContext.AssureSqlServerSafePatch()
+            while ($this.Count -gt 0)
+            {
+                $Patch = $this.GetTopPatch()
+                
+                $this.PatchContext.NewSqlCommand()
+                if ($Patch.CheckPoint)
+                {
+                    #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
+                    #{
+                        # Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
+                        $this.PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
+                    #}
+                }
+                else
+                {
+                    #$WhatIfExecute = $TRUE
+                    #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Publish Patch')) 
+                    #{
+                    #    $WhatIfExecute = $false
+                    #}
+                    #PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$WhatIfExecute
+                    PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$false
+                }
+                $this.RemoveTopPatch()
+            }
+        }
+        Catch
+        {
+            TerminalError $_
+        }
+        $this.PatchContext.Connection.Close()
+    }
+
+
 }
 
+# ----------------------------------------------------------------------------------
+function TerminalError($Exception,$OptionalMsg)
+{
+    $ExceptionMessage = $Exception.Exception.Message;
+    if ($Exception.Exception.InnerException)
+    {
+        $ExceptionMessage = $Exception.Exception.InnerException.Message;
+    }
+    $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
+    $host.ui.WriteErrorLine($errorQueryMsg) 
+    
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # Temp 
+    $DisplayCallStack = $true
+
+    if ($DisplayCallStack)
+    {
+        $brkline = '=========================================================================='
+        $host.ui.WriteErrorLine($brkline)
+        $host.ui.WriteErrorLine('Stack calls')
+        $host.ui.WriteErrorLine($brkline)
+        $stack = Get-PSCallStack
+
+        $host.ui.WriteErrorLine("Location: $($Exception.InvocationInfo.PositionMessage)")
+        $host.ui.WriteErrorLine(" Command: $($stack[1].Command)")
+        #$host.ui.WriteErrorLine("Position: $($Exception.InvocationInfo.Line)")
+        $host.ui.WriteErrorLine($brkline)
+
+        for ($i = 1; $i -lt $stack.Count; $i++)
+        #foreach ($stackItem in $stack)
+        {
+            $stackItem = $stack[$i]
+            $host.ui.WriteErrorLine("Location: $($stackItem.Location)")
+            $host.ui.WriteErrorLine(" Command: $($stackItem.Command)")
+            $host.ui.WriteErrorLine("Position: $($stackItem.Position)")
+            $host.ui.WriteErrorLine($brkline)
+        }
+    }
+    Exit
+}
+
+Export-ModuleMember -Function TerminalError
 function PerformPatches
 {
     param
@@ -474,6 +477,8 @@ function PerformPatches
         }
     }
 }
+
+Export-ModuleMember -Function PerformPatches
 
 # ----------------------------------------------------------------------------------
 function Add-SqlDbPatches
@@ -524,7 +529,7 @@ function Add-SqlDbPatches
                         }
                         else
                         {
-                            [void]$script:QueuedPatches.AddPatch($Patch) 
+                            [void]$script:QueuedPatches.Add($Patch)
                         }
                     }
                     else
@@ -686,7 +691,7 @@ function Initialize-SqlServerSafePatch
     # AssureSqlServerSafePatch
 }
 
-Export-ModuleMember -Function Initialize-SqlServerSafePatch
+Export-ModuleMember -Function Initialize-SqlServerSafePatch -Verbose
 
 $PublishWhatIf = $false
 
