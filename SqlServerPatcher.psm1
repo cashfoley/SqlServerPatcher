@@ -1,4 +1,16 @@
-﻿
+﻿#region License
+
+$LicenseMessage = @"
+SqlServerSafePatch - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
+Copyright (C) 2013-16 Cash Foley Software Consulting LLC
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ GNU General Public License for more details.
+ https://SqlServerSafePatch.codeplex.com/license
+"@
+#endregion
+
 # ----------------------------------------------------------------------------------
 class Patch
 {
@@ -441,7 +453,27 @@ class QueuedPatches : System.Collections.ArrayList {
                     #    $WhatIfExecute = $false
                     #}
                     #PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$WhatIfExecute
-                    PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$false
+                    #PerformPatches -Patches $Patch -PatchContext $this.PatchContext -WhatIfExecute:$false
+                                
+                    Write-Host $Patch.PatchName
+                    
+                    $WhatifExecute = $false
+                    $this.PatchContext.OutPatchFile($Patch.PatchName, $Patch.patchContent)
+
+                    if (!$WhatIfExecute)
+                    {
+                        $this.PatchContext.NewSqlCommand()
+                        try
+                        {
+                            $this.PatchContext.ExecuteNonQuery( $Patch.patchContent )
+                        }
+                        Catch
+                        {
+                            $this.PatchContext.ExecuteNonQuery($this.PatchContext.SqlConstants.RollbackTransactionScript)
+                            throw $_
+                        }
+                    }
+
                 }
                 $this.RemoveTopPatch()
             }
@@ -498,40 +530,6 @@ function TerminalError($Exception,$OptionalMsg)
 }
 
 Export-ModuleMember -Function TerminalError
-function PerformPatches
-{
-    param
-    ( [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
-      $Patches
-	, $PatchContext
-    , $WhatIfExecute = $True
-    )
-    process
-    {
-        foreach ($Patch in $Patches)
-        {
-            Write-Host $Patch.PatchName
-                
-            $PatchContext.OutPatchFile($Patch.PatchName, $Patch.patchContent)
-
-            if (!$WhatIfExecute)
-            {
-                $PatchContext.NewSqlCommand()
-                try
-                {
-                    $PatchContext.ExecuteNonQuery( $Patch.patchContent )
-                }
-                Catch
-                {
-                    $PatchContext.ExecuteNonQuery($PatchContext.SqlConstants.RollbackTransactionScript)
-                    throw $_
-                }
-            }
-        }
-    }
-}
-
-Export-ModuleMember -Function PerformPatches
 
 # ----------------------------------------------------------------------------------
 function Add-SqlDbPatches
@@ -566,30 +564,14 @@ function Add-SqlDbPatches
 
 Export-ModuleMember -Function Add-SqlDbPatches
 
-#region License
-
-$LicenseMessage = @"
-SqlServerSafePatch - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
-Copyright (C) 2013-16 Cash Foley Software Consulting LLC
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- GNU General Public License for more details.
- https://SqlServerSafePatch.codeplex.com/license
-"@
-#endregion
-
 # ----------------------------------------------------------------------------------
 
 function Publish-Patches
 {
-    [CmdletBinding(
-            SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium'
-    )]
+    [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
  
     param () 
     $script:QueuedPatches.PerformPatches()
-
 }
 
 Export-ModuleMember -Function Publish-Patches
@@ -598,15 +580,7 @@ Export-ModuleMember -Function Publish-Patches
 
 function Add-TokenReplacement
 {
-     param
-     (
-         [string]
-         $TokenValue,
-
-         [string]
-         $ReplacementValue
-     )
-
+    param([string]$TokenValue, [string]$ReplacementValue)
     $PatchContext.TokenList.AddTokenPair($TokenValue,$ReplacementValue)
 }
 
@@ -618,9 +592,7 @@ $PatchContext = $null
 
 function Initialize-SqlServerSafePatch
 {
-    [CmdletBinding(
-            SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium'
-    )]
+    [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
 
     param 
     ( $ServerName
