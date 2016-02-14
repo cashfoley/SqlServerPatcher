@@ -79,7 +79,7 @@ function Test-ForPatches
          [string] $Description='Verify Patches Included'
      )
 
-    $PatchNames = $QueuedPatches | %{$_.PatchName}
+    $PatchNames = Get-ExecutablePatches| %{$_.PatchName}
     Describe $Description {
         if (! $PartialList)
         { 
@@ -220,7 +220,7 @@ Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches
 
 Describe 'Verify No Patches to be run after publish' {
     It 'Should contain 0 Patches' {
-        ($QueuedPatches.Count) | Should be 0
+        Get-ExecutablePatches | Should be $null
     }
 }
 
