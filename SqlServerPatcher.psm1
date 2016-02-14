@@ -22,7 +22,6 @@ class Patch
     $PatchFile
     $PatchName
     $CheckSum
-    $CheckPoint
     $PatchContent
     $PatchAttributes = @{}
 
@@ -64,12 +63,11 @@ class Patch
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
 
-    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName,$CheckPoint)
+    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName)
     {
         $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
         $this.PatchName = $PatchName
-        $this.CheckPoint = $CheckPoint
         $this.PatchAttributes = @{}
 
         $this.CheckSum = $This.GetFileChecksum($PatchFile)
@@ -135,19 +133,23 @@ Class PatchContext
     [string] $DatabaseName
     [int]    $DefaultCommandTimeout
     [string] $RootFolderPath
+    [bool]   $Checkpoint
     $Connection
     $SqlCommand
 
     [string] $OutFolderPath
 
-    PatchContext( $DBServerName
-        , $DatabaseName
-        , $RootFolderPath
-        , $OutFolderPathParm
-        , $EnvironmentParm
+    PatchContext( 
+          [string] $DBServerName
+        , [string] $DatabaseName
+        , [string] $RootFolderPath
+        , [string] $OutFolderPathParm
+        , [string] $EnvironmentParm
+        , [bool]   $Checkpoint
         )
     {
         $this.Environment = $EnvironmentParm
+        $this.Checkpoint = $Checkpoint
 
         $this.TokenList = [TokenList]::new()
 
@@ -381,7 +383,7 @@ class QueuedPatches : System.Collections.ArrayList {
         $this.PatchContext = $PatchContext
     }
 
-    [void] AddPatch([System.IO.FileInfo] $PatchFile,[bool]$CheckPoint,[bool]$Force,[bool]$ReExecuteOnChange)
+    [void] AddPatch([System.IO.FileInfo] $PatchFile,[bool]$Force,[bool]$ReExecuteOnChange)
     {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
@@ -399,7 +401,7 @@ class QueuedPatches : System.Collections.ArrayList {
         }
         else
         {
-            $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$PatchName,$CheckPoint)
+            $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$PatchName)
                     
             $PatchCheckSum = [string]($this.PatchContext.GetChecksumForPatch($PatchName))
             
@@ -451,11 +453,11 @@ class QueuedPatches : System.Collections.ArrayList {
                 $Patch = $this.GetTopPatch()
                 
                 $this.PatchContext.NewSqlCommand()
-                if ($Patch.CheckPoint)
+                if ($this.PatchContext.CheckPoint)
                 {
                     #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
                     #{
-                        # Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
+                        Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
                         $this.PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
                     #}
                 }
@@ -553,7 +555,6 @@ function Add-SqlDbPatches
     ( [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
       [system.IO.FileInfo[]]$PatchFiles
     , [switch]$ReExecuteOnChange
-    , [switch]$CheckPoint
     , [switch]$Force
     )
  
@@ -563,7 +564,7 @@ function Add-SqlDbPatches
         {
             foreach ($PatchFile in $PatchFiles)
             {
-                $script:QueuedPatches.AddPatch($PatchFile,$CheckPoint,$Force,$ReExecuteOnChange)
+                $script:QueuedPatches.AddPatch($PatchFile,$Force,$ReExecuteOnChange)
             }
         }
         Catch
@@ -638,6 +639,7 @@ function Initialize-SqlServerSafePatch
     , [switch]$PublishWhatIf
     , [switch]$EchoSql
     , [switch]$DisplayCallStack
+    , [switch]$Checkpoint
     )
 
     Write-Verbose -Message $LicenseMessage
@@ -656,7 +658,7 @@ function Initialize-SqlServerSafePatch
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment)
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$Checkpoint)
     
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
@@ -680,5 +682,5 @@ $PublishWhatIf = $false
 
 [QueuedPatches]$QueuedPatches = [QueuedPatches]::New()
 
-Export-ModuleMember -Variable QueuedPatches
+# Export-ModuleMember -Variable QueuedPatches
 

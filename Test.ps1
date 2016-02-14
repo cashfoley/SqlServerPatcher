@@ -144,13 +144,15 @@ function InitDbPatches
      param
      (
          [string] $Environment = ''
+       , [switch] $Checkpoint
      )
 
     Initialize-SqlServerSafePatch -ServerName $TestSqlServer `
                           -DatabaseName $TestDatabase `
                           -RootFolderPath $rootFolderPath `
                           -OutFolderPath $outFolderPath `
-                          -Environment $Environment 
+                          -Environment $Environment `
+                          -Checkpoint:$Checkpoint
 }
 
 
@@ -193,10 +195,48 @@ Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches #-Verbose   
 
 ##############################################################################################################################
+#  Verfify Checkpoint 
 
 # $Connection = Initialize-TestDatabase $TestSqlServer
 
-InitDbPatches
+InitDbPatches -Checkpoint
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
+
+Test-ForPatches -TestPatchNames @(
+    'BeforeOneTime\01_SampleItems.sql'
+    'BeforeOneTime\02_ScriptsRun.sql'
+    'BeforeOneTime\03_ScriptsRunErrors.sql'
+    'BeforeOneTime\04_Version.sql'
+)
+
+Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created'
+
+Publish-Patches
+
+Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created during Checkpoint'
+
+InitDbPatches 
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
+
+Describe 'Verify No Patches to be run after Checkpoint' {
+    It 'Should contain 0 Patches' {
+        Get-ExecutablePatches | Should be $null
+    }
+}
+
+Publish-Patches
+
+Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created after Checkpoint'
+
+
+##############################################################################################################################
+#  Test Patches get executed
+
+$Connection = Initialize-TestDatabase $TestSqlServer
+
+InitDbPatches 
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
