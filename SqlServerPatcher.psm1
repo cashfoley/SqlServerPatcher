@@ -1,47 +1,19 @@
-﻿
+﻿#region License
 
+$LicenseMessage = @"
+SqlServerSafePatch - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
+Copyright (C) 2013-16 Cash Foley Software Consulting LLC
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ GNU General Public License for more details.
+ https://SqlServerSafePatch.codeplex.com/license
+"@
+#endregion
 
-function TerminalError($Exception,$OptionalMsg)
-{
-    $ExceptionMessage = $Exception.Exception.Message;
-    if ($Exception.Exception.InnerException)
-    {
-        $ExceptionMessage = $Exception.Exception.InnerException.Message;
-    }
-    $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
-    $host.ui.WriteErrorLine($errorQueryMsg) 
-    
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # Temp 
-    $DisplayCallStack = $true
-
-    if ($DisplayCallStack)
-    {
-        $brkline = '=========================================================================='
-        $host.ui.WriteErrorLine($brkline)
-        $host.ui.WriteErrorLine('Stack calls')
-        $host.ui.WriteErrorLine($brkline)
-        $stack = Get-PSCallStack
-
-        $host.ui.WriteErrorLine("Location: $($Exception.InvocationInfo.PositionMessage)")
-        $host.ui.WriteErrorLine(" Command: $($stack[1].Command)")
-        #$host.ui.WriteErrorLine("Position: $($Exception.InvocationInfo.Line)")
-        $host.ui.WriteErrorLine($brkline)
-
-        for ($i = 1; $i -lt $stack.Count; $i++)
-        #foreach ($stackItem in $stack)
-        {
-            $stackItem = $stack[$i]
-            $host.ui.WriteErrorLine("Location: $($stackItem.Location)")
-            $host.ui.WriteErrorLine(" Command: $($stackItem.Command)")
-            $host.ui.WriteErrorLine("Position: $($stackItem.Position)")
-            $host.ui.WriteErrorLine($brkline)
-        }
-    }
-    Exit
-}
-
-
+################################################################################################################
+################################################################################################################
+################################################################################################################
 class Patch
 {
     hidden $Content
@@ -50,7 +22,6 @@ class Patch
     $PatchFile
     $PatchName
     $CheckSum
-    $CheckPoint
     $PatchContent
     $PatchAttributes = @{}
 
@@ -62,6 +33,7 @@ class Patch
         try
         {
             $shaHash = [system.Convert]::ToBase64String($ShaProvider.ComputeHash($file))  
+            #  To Do - combine read file with compute checksum
             return '{0} {1:d7}' -f $shaHash,$fileInfo.Length
         }
         finally 
@@ -86,17 +58,16 @@ class Patch
     {
         $fileContent = Get-Content $this.PatchFile | Out-String
         $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                             ($this.GoScript((ReplaceTokens $fileContent))) + 
+                             ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
                              ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
 
-    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName,$CheckPoint)
+    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName)
     {
         $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
         $this.PatchName = $PatchName
-        $this.CheckPoint = $CheckPoint
         $this.PatchAttributes = @{}
 
         $this.CheckSum = $This.GetFileChecksum($PatchFile)
@@ -104,34 +75,40 @@ class Patch
      }
 }
 
-class QueuedPatches : System.Collections.ArrayList {
+################################################################################################################
+################################################################################################################
+################################################################################################################
 
-    hidden $Patches
-
-    QueuedPatches()
+class TokenList
+{
+    hidden [array] $Tokens
+    
+    [string] ReplaceTokens([string]$str)
     {
-        #$this.Patches  = New-Object -TypeName System.Collections.ArrayList
+        foreach ($Token in $this.Tokens)
+        {
+            $str = $str.Replace($Token.TokenValue,$Token.ReplacementValue)
+        }
+        return $str
     }
 
-    [void] AddPatch([patch] $Patch)
+    [void] AddTokenPair([string]$TokenValue,[string]$ReplacementValue)
     {
-        $this.Add($Patch)
+        $this.Tokens += @{
+            TokenValue       = $TokenValue
+            ReplacementValue = $ReplacementValue
+            }
     }
-
-    [patch] GetTopPatch()
-    {
-        return $this[0]
-    }
-
-    [void] RemoveTopPatch()
-    {
-        $this.RemoveAt(0)    
-    }
-
 }
+
+################################################################################################################
+################################################################################################################
+################################################################################################################
 
 Class PatchContext
 {
+    [TokenList] $TokenList
+
     [bool]      $DisplayCallStack
     [hashtable] $SqlConstants
 
@@ -145,8 +122,8 @@ Class PatchContext
     [switch] $PublishWhatif = $false
     [string] $Environment = $EnvironmentParm
 
-    [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
-    [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
+    hidden [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
+    hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
 
     [System.Text.RegularExpressions.Regex] $QueriesRegex  = `
         ( New-Object System.Text.RegularExpressions.Regex `
@@ -156,19 +133,25 @@ Class PatchContext
     [string] $DatabaseName
     [int]    $DefaultCommandTimeout
     [string] $RootFolderPath
+    [bool]   $Checkpoint
     $Connection
     $SqlCommand
-    [array]  $TokenReplacements
+
     [string] $OutFolderPath
 
-    PatchContext( $DBServerName
-        , $DatabaseName
-        , $RootFolderPath
-        , $OutFolderPathParm
-        , $EnvironmentParm
+    PatchContext( 
+          [string] $DBServerName
+        , [string] $DatabaseName
+        , [string] $RootFolderPath
+        , [string] $OutFolderPathParm
+        , [string] $EnvironmentParm
+        , [bool]   $Checkpoint
         )
     {
         $this.Environment = $EnvironmentParm
+        $this.Checkpoint = $Checkpoint
+
+        $this.TokenList = [TokenList]::new()
 
         $LoadSqlConstants = @()
         Import-LocalizedData -BaseDirectory $PSScriptRoot -FileName SqlConstants.psd1 -BindingVariable LoadSqlConstants
@@ -204,8 +187,6 @@ Class PatchContext
         $this.Connection.FireInfoMessageEventOnUserErrors = $false;
 
         $this.SqlCommand = $this.NewSqlCommand()
-
-        $this.TokenReplacements = @()
 
         $this.OutFolderPath = Join-Path $OutFolderPathParm (get-date -Format yyyy-MM-dd-HH.mm.ss.fff)
         if (! (Test-Path $this.OutFolderPath -PathType Container) )
@@ -382,48 +363,187 @@ Class PatchContext
     }
 }
 
-function ReplaceTokens([string]$str)
-{
-    foreach ($TokenReplacement in $PatchContext.TokenReplacements)
+################################################################################################################
+################################################################################################################
+################################################################################################################
+
+[CmdletBinding(
+    SupportsShouldProcess=$True,ConfirmImpact=’Medium’
+)]
+class QueuedPatches : System.Collections.ArrayList {
+
+    [PatchContext]$PatchContext
+
+    QueuedPatches()
     {
-        $str = $str.Replace($TokenReplacement.TokenValue,$TokenReplacement.ReplacementValue)
     }
-    $str
-}
 
-function PerformPatches
-{
-    param
-    ( [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
-      $Patches
-	, $PatchContext
-    , $WhatIfExecute = $True
-    )
-    process
+    [void]SetPatchContext($PatchContext)
     {
-        foreach ($Patch in $Patches)
-        {
-            Write-Host $Patch.PatchName
-                
-            $PatchContext.OutPatchFile($Patch.PatchName, $Patch.patchContent)
+        $this.PatchContext = $PatchContext
+    }
 
-            if (!$WhatIfExecute)
+    [void] AddPatch([System.IO.FileInfo] $PatchFile,[bool]$Force,[bool]$ReExecuteOnChange)
+    {
+        $PatchFullName = $PatchFile.Fullname
+        Write-Verbose "`$PatchFullName: $PatchFullName"
+
+        $PatchName = $this.PatchContext.GetPatchName($PatchFullName)
+        Write-Verbose "`$PatchName: $PatchName"
+            
+        if (! ($this.PatchContext.TestEnvironment($PatchName) ) )
+        {
+            Write-Verbose "`$PatchName ignored because it is the wrong target environment"
+        }
+        elseif ($script:QueuedPatches.Where({$_.PatchName -eq $PatchName}))
+        {
+            Write-Verbose "`$PatchName ignored because it is already queued"
+        }
+        else
+        {
+            $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$PatchName)
+                    
+            $PatchCheckSum = [string]($this.PatchContext.GetChecksumForPatch($PatchName))
+            
+            if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
             {
-                $PatchContext.NewSqlCommand()
-                try
+                if (!$ReExecuteOnChange -and ($PatchCheckSum -ne ''))
                 {
-                    $PatchContext.ExecuteNonQuery( $Patch.patchContent )
+                    Write-Warning "Patch $PatchName has changed but will be ignored"
                 }
-                Catch
+                else
                 {
-                    $PatchContext.ExecuteNonQuery($PatchContext.SqlConstants.RollbackTransactionScript)
-                    throw $_
+                    [void]$this.Add($Patch)
                 }
+            }
+            else
+            {
+                Write-Verbose "Patch $PatchName current" 
             }
         }
     }
+
+    [patch] GetTopPatch()
+    {
+        return $this[0]
+    }
+
+    [void] RemoveTopPatch()
+    {
+        $this.RemoveAt(0)    
+    }
+
+    [int] GetPatchCount()
+    {
+        return $this.count
+    }
+
+    [void] PerformPatches()
+    {
+            if ($this.GetPatchCount() -eq 0)
+        {
+            Write-Host -Object '    No Patches to Apply'
+            return
+        }
+        try
+        {
+            $this.PatchContext.AssureSqlServerSafePatch()
+            while ($this.GetPatchCount() -gt 0)
+            {
+                $Patch = $this.GetTopPatch()
+                
+                $this.PatchContext.NewSqlCommand()
+                if ($this.PatchContext.CheckPoint)
+                {
+                    #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
+                    #{
+                        Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
+                        $this.PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
+                    #}
+                }
+                else
+                {
+                    Write-Host $Patch.PatchName
+                    
+                    $WhatifExecute = $false
+                    $this.PatchContext.OutPatchFile($Patch.PatchName, $Patch.patchContent)
+
+                    if (!$WhatIfExecute)
+                    {
+                        $this.PatchContext.NewSqlCommand()
+                        try
+                        {
+                            $this.PatchContext.ExecuteNonQuery( $Patch.patchContent )
+                        }
+                        Catch
+                        {
+                            $this.PatchContext.ExecuteNonQuery($this.PatchContext.SqlConstants.RollbackTransactionScript)
+                            throw $_
+                        }
+                    }
+
+                }
+                $this.RemoveTopPatch()
+            }
+        }
+        Catch
+        {
+            TerminalError $_
+        }
+        $this.PatchContext.Connection.Close()
+    }
+
+
 }
 
+################################################################################################################
+################################################################################################################
+################################################################################################################
+
+function TerminalError($Exception,$OptionalMsg)
+{
+    $ExceptionMessage = $Exception.Exception.Message;
+    if ($Exception.Exception.InnerException)
+    {
+        $ExceptionMessage = $Exception.Exception.InnerException.Message;
+    }
+    $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
+    $host.ui.WriteErrorLine($errorQueryMsg) 
+    
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # Temp 
+    $DisplayCallStack = $true
+
+    if ($DisplayCallStack)
+    {
+        $brkline = '=========================================================================='
+        $host.ui.WriteErrorLine($brkline)
+        $host.ui.WriteErrorLine('Stack calls')
+        $host.ui.WriteErrorLine($brkline)
+        $stack = Get-PSCallStack
+
+        $host.ui.WriteErrorLine("Location: $($Exception.InvocationInfo.PositionMessage)")
+        $host.ui.WriteErrorLine(" Command: $($stack[1].Command)")
+        #$host.ui.WriteErrorLine("Position: $($Exception.InvocationInfo.Line)")
+        $host.ui.WriteErrorLine($brkline)
+
+        for ($i = 1; $i -lt $stack.Count; $i++)
+        #foreach ($stackItem in $stack)
+        {
+            $stackItem = $stack[$i]
+            $host.ui.WriteErrorLine("Location: $($stackItem.Location)")
+            $host.ui.WriteErrorLine(" Command: $($stackItem.Command)")
+            $host.ui.WriteErrorLine("Position: $($stackItem.Position)")
+            $host.ui.WriteErrorLine($brkline)
+        }
+    }
+    Exit
+}
+
+Export-ModuleMember -Function TerminalError
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 function Add-SqlDbPatches
 {
@@ -435,7 +555,6 @@ function Add-SqlDbPatches
     ( [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
       [system.IO.FileInfo[]]$PatchFiles
     , [switch]$ReExecuteOnChange
-    , [switch]$CheckPoint
     , [switch]$Force
     )
  
@@ -445,42 +564,7 @@ function Add-SqlDbPatches
         {
             foreach ($PatchFile in $PatchFiles)
             {
-                $PatchFile = $PatchFile.Fullname
-                Write-Verbose "`$PatchFile: $PatchFile"
-
-                $PatchName = $PatchContext.GetPatchName($PatchFile)
-                Write-Verbose "`$PatchName: $PatchName"
-            
-                if (! ($PatchContext.TestEnvironment($PatchFile) ) )
-                {
-                    Write-Verbose "`$PatchName ignored because it is the wrong target environment"
-                }
-                elseif ($QueuedPatches.Where({$_.PatchName -eq $PatchName}))
-                {
-                    Write-Verbose "`$PatchName ignored because it is already queued"
-                }
-                else
-                {
-                    $Patch = [Patch]::new($PatchContext,$PatchFile,$PatchName,$CheckPoint)
-                    
-                    $PatchCheckSum = [string]($PatchContext.GetChecksumForPatch($PatchName))
-            
-                    if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
-                    {
-                        if (!$ReExecuteOnChange -and ($PatchCheckSum -ne ''))
-                        {
-                            Write-Warning "Patch $PatchName has changed but will be ignored"
-                        }
-                        else
-                        {
-                            [void]$QueuedPatches.AddPatch($Patch) 
-                        }
-                    }
-                    else
-                    {
-                        Write-Verbose "Patch $PatchName current" 
-                    }
-                }
+                $script:QueuedPatches.AddPatch($PatchFile,$Force,$ReExecuteOnChange)
             }
         }
         Catch
@@ -492,154 +576,58 @@ function Add-SqlDbPatches
 
 Export-ModuleMember -Function Add-SqlDbPatches
 
-#region License
-
-$LicenseMessage = @"
-SqlServerSafePatch - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
-Copyright (C) 2013-16 Cash Foley Software Consulting LLC
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- GNU General Public License for more details.
- https://SqlServerSafePatch.codeplex.com/license
-"@
-#endregion
-
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
-$PublishWhatIf = $false
-
-$DBPatchContext = @{}
-
-$QueuedPatches = [QueuedPatches]::New()
-
-Export-ModuleMember -Variable QueuedPatches
-
-# ----------------------------------------------------------------------------------
-function ExecuteValidators
-{
-     param
-     (
-         [array]
-         $RegExValidators,
-
-         [Object]
-         $SqlContent
-     )
- 
-    if ($RegExValidators -ne $null)
-    {
-        $errorFound = $false
-        foreach ($RegExValidator in $RegExValidators)
-        {
-            $ValidatorMatches = $SqlContent -match $RegExValidators
-            if ($ValidatorMatches)
-            {
-                #Need Validator Hash Table
-                Log-Error $validator.message
-                $errorFound = $TRUE
-            }
-        }
-        if ($errorFound)
-        {
-            Throw 'Validators Failed'
-        }
-    }
-}
-
-function ExecutePatchBatch
-{
-     param
-     (
-         [Object]
-         $PatchBatch
-     )
-
-
-}
 function Publish-Patches
 {
-    [CmdletBinding(
-            SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium'
-    )]
+    [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
  
     param () 
-
-    process 
-    {
-        if ($QueuedPatches.Count -eq 0)
-        {
-            Write-Host -Object '    No Patches to Apply'
-            return
-        }
-        try
-        {
-            $PatchContext.AssureSqlServerSafePatch()
-            while ($QueuedPatches.Count -gt 0)
-            {
-                $Patch = $QueuedPatches.GetTopPatch()
-                
-                $PatchContext.NewSqlCommand()
-                if ($Patch.CheckPoint)
-                {
-                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
-                    {
-                        # Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
-                        $PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
-                    }
-                }
-                else
-                {
-                    $WhatIfExecute = $TRUE
-                    if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Publish Patch')) 
-                    {
-                        $WhatIfExecute = $false
-                    }
-                    PerformPatches -Patches $Patch -PatchContext $PatchContext -WhatIfExecute:$WhatIfExecute
-                }
-                $QueuedPatches.RemoveTopPatch()
-            }
-        }
-        Catch
-        {
-            TerminalError $_
-        }
-        $PatchContext.Connection.Close()
-    }
+    $script:QueuedPatches.PerformPatches()
 }
 
 Export-ModuleMember -Function Publish-Patches
 
 # ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 
-function Add-TokenReplacement 
+function Get-ExecutablePatches
 {
-     param
-     (
-         [Object]
-         $TokenValue,
-
-         [Object]
-         $ReplacementValue
-     )
-
-    $PatchContext.TokenReplacements += @{
-        TokenValue       = $TokenValue
-        ReplacementValue = $ReplacementValue
+    $result = @()
+    foreach ($Patch in $QueuedPatches)
+    {
+        $result += $Patch
     }
+
+    return [array]$result
+}
+
+Export-ModuleMember -Function Get-ExecutablePatches
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+
+function Add-TokenReplacement
+{
+    param([string]$TokenValue, [string]$ReplacementValue)
+    $PatchContext.TokenList.AddTokenPair($TokenValue,$ReplacementValue)
 }
 
 Export-ModuleMember -Function Add-TokenReplacemen
 
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
 $PatchContext = $null
 
 function Initialize-SqlServerSafePatch
 {
-    [CmdletBinding(
-            SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium'
-    )]
+    [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
 
     param 
     ( $ServerName
@@ -651,6 +639,7 @@ function Initialize-SqlServerSafePatch
     , [switch]$PublishWhatIf
     , [switch]$EchoSql
     , [switch]$DisplayCallStack
+    , [switch]$Checkpoint
     )
 
     Write-Verbose -Message $LicenseMessage
@@ -669,18 +658,29 @@ function Initialize-SqlServerSafePatch
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment)
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$Checkpoint)
     
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
     $PatchContext.SqlLogFile = $SqlLogFile
     $PatchContext.PublishWhatIf = $PublishWhatIf
 
-    $QueuedPatches = $QueuedPatches.Clear()
-    $TokenReplacements = @()
+    $script:QueuedPatches = [QueuedPatches]::New()
+
+    $script:QueuedPatches.SetPatchContext($script:PatchContext)
 
     # AssureSqlServerSafePatch
 }
 
 Export-ModuleMember -Function Initialize-SqlServerSafePatch
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+
+$PublishWhatIf = $false
+
+[QueuedPatches]$QueuedPatches = [QueuedPatches]::New()
+
+# Export-ModuleMember -Variable QueuedPatches
 
