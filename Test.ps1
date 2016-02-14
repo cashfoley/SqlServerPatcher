@@ -166,11 +166,8 @@ Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbos
 
 function Test-EnvironmentPatches
 {
-     param
-     (
-         [string] $Environment,
-         [int]    $TestPatchCount = 0
-     )
+     param([string] $Environment)
+
 
     InitDbPatches -Environment $Environment
 
@@ -187,9 +184,9 @@ function Test-EnvironmentPatches
 
 # ------------------------------------
 
-Test-EnvironmentPatches -Environment 'Dev' -TestPatchCount 5
-Test-EnvironmentPatches -Environment 'Test' -TestPatchCount 5
-Test-EnvironmentPatches -Environment 'Prod' -TestPatchCount 5
+Test-EnvironmentPatches -Environment 'Dev' 
+Test-EnvironmentPatches -Environment 'Test'
+Test-EnvironmentPatches -Environment 'Prod'
 
 
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches #-Verbose   
@@ -201,6 +198,9 @@ Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | 
 
 InitDbPatches -Checkpoint
 
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
+
+# Attempt to add Patches again.  should be ignored
 Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
 Test-ForPatches -TestPatchNames @(

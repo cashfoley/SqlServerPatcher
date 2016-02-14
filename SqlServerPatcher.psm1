@@ -18,11 +18,13 @@ class Patch
 {
     hidden $Content
 
-    $PatchContext
-    $PatchFile
-    $PatchName
-    $CheckSum
-    $PatchContent
+    [PatchContext]       $PatchContext
+    [System.IO.FileInfo] $PatchFile
+    [string]             $PatchName
+    [string]             $CheckSum
+    [string]             $DatabaseCheckSum
+    [string]             $PatchContent
+
     $PatchAttributes = @{}
 
     # ----------------------------------------------------------------------------------
@@ -63,14 +65,17 @@ class Patch
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
 
-    Patch ([PatchContext]$PatchContext,$PatchFile,$PatchName)
+    Patch ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile)
     {
         $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
-        $this.PatchName = $PatchName
+        $this.PatchName = $this.PatchContext.GetPatchName($PatchFile.FullName)
+
         $this.PatchAttributes = @{}
 
         $this.CheckSum = $This.GetFileChecksum($PatchFile)
+        $this.DatabaseCheckSum = [string]($this.PatchContext.GetChecksumForPatch($this.PatchName))
+
         $this.SetPatchContent()
      }
 }
@@ -388,28 +393,23 @@ class QueuedPatches : System.Collections.ArrayList {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
 
-        $PatchName = $this.PatchContext.GetPatchName($PatchFullName)
-        Write-Verbose "`$PatchName: $PatchName"
-            
-        if (! ($this.PatchContext.TestEnvironment($PatchName) ) )
+        if (! ($this.PatchContext.TestEnvironment($PatchFullName) ) )
         {
-            Write-Verbose "`$PatchName ignored because it is the wrong target environment"
-        }
-        elseif ($script:QueuedPatches.Where({$_.PatchName -eq $PatchName}))
-        {
-            Write-Verbose "`$PatchName ignored because it is already queued"
+            Write-Verbose "`$PatchFullName ignored because it is the wrong target environment"
         }
         else
         {
-            $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$PatchName)
+            $Patch = [Patch]::new($this.PatchContext,$PatchFullName)
                     
-            $PatchCheckSum = [string]($this.PatchContext.GetChecksumForPatch($PatchName))
-            
-            if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
+            if ($Patch.Checksum -ne $Patch.DatabaseCheckSum -or $Force)
             {
-                if (!$ReExecuteOnChange -and ($PatchCheckSum -ne ''))
+                if (!$ReExecuteOnChange -and ($Patch.DatabaseCheckSum -ne ''))
                 {
-                    Write-Warning "Patch $PatchName has changed but will be ignored"
+                    Write-Warning "Patch $($Patch.PatchName) has changed but will be ignored"
+                }
+                elseif ($this.Where({$_.PatchName -eq $Patch.PatchName}))
+                {
+                    Write-Verbose "$($Patch.PatchName) ignored because it is already queued"
                 }
                 else
                 {
@@ -418,7 +418,7 @@ class QueuedPatches : System.Collections.ArrayList {
             }
             else
             {
-                Write-Verbose "Patch $PatchName current" 
+                Write-Verbose "Patch $($Patch.PatchName) current" 
             }
         }
     }
