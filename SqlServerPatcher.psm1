@@ -105,8 +105,8 @@ Class PatchContext
     [switch] $PublishWhatif = $false
     [string] $Environment = $EnvironmentParm
 
-    [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
-    [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
+    hidden [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
+    hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
 
     [System.Text.RegularExpressions.Regex] $QueriesRegex  = `
         ( New-Object System.Text.RegularExpressions.Regex `
@@ -360,9 +360,44 @@ class QueuedPatches : System.Collections.ArrayList {
         $this.PatchContext = $PatchContext
     }
 
-    [void] AddPatch([patch] $Patch)
+    [void] AddPatch([System.IO.FileInfo] $PatchFile,[bool]$CheckPoint,[bool]$Force,[bool]$ReExecuteOnChange)
     {
-        $this.Add($Patch)
+        $PatchFullName = $PatchFile.Fullname
+        Write-Verbose "`$PatchFullName: $PatchFullName"
+
+        $PatchName = $this.PatchContext.GetPatchName($PatchFullName)
+        Write-Verbose "`$PatchName: $PatchName"
+            
+        if (! ($this.PatchContext.TestEnvironment($PatchName) ) )
+        {
+            Write-Verbose "`$PatchName ignored because it is the wrong target environment"
+        }
+        elseif ($script:QueuedPatches.Where({$_.PatchName -eq $PatchName}))
+        {
+            Write-Verbose "`$PatchName ignored because it is already queued"
+        }
+        else
+        {
+            $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$PatchName,$CheckPoint)
+                    
+            $PatchCheckSum = [string]($this.PatchContext.GetChecksumForPatch($PatchName))
+            
+            if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
+            {
+                if (!$ReExecuteOnChange -and ($PatchCheckSum -ne ''))
+                {
+                    Write-Warning "Patch $PatchName has changed but will be ignored"
+                }
+                else
+                {
+                    [void]$this.Add($Patch)
+                }
+            }
+            else
+            {
+                Write-Verbose "Patch $PatchName current" 
+            }
+        }
     }
 
     [patch] GetTopPatch()
@@ -519,42 +554,7 @@ function Add-SqlDbPatches
         {
             foreach ($PatchFile in $PatchFiles)
             {
-                $PatchFile = $PatchFile.Fullname
-                Write-Verbose "`$PatchFile: $PatchFile"
-
-                $PatchName = $PatchContext.GetPatchName($PatchFile)
-                Write-Verbose "`$PatchName: $PatchName"
-            
-                if (! ($PatchContext.TestEnvironment($PatchFile) ) )
-                {
-                    Write-Verbose "`$PatchName ignored because it is the wrong target environment"
-                }
-                elseif ($script:QueuedPatches.Where({$_.PatchName -eq $PatchName}))
-                {
-                    Write-Verbose "`$PatchName ignored because it is already queued"
-                }
-                else
-                {
-                    $Patch = [Patch]::new($PatchContext,$PatchFile,$PatchName,$CheckPoint)
-                    
-                    $PatchCheckSum = [string]($PatchContext.GetChecksumForPatch($PatchName))
-            
-                    if ($Patch.Checksum -ne $PatchCheckSum -or $Force)
-                    {
-                        if (!$ReExecuteOnChange -and ($PatchCheckSum -ne ''))
-                        {
-                            Write-Warning "Patch $PatchName has changed but will be ignored"
-                        }
-                        else
-                        {
-                            [void]$script:QueuedPatches.Add($Patch)
-                        }
-                    }
-                    else
-                    {
-                        Write-Verbose "Patch $PatchName current" 
-                    }
-                }
+                $script:QueuedPatches.AddPatch($PatchFile,$CheckPoint,$Force,$ReExecuteOnChange)
             }
         }
         Catch
@@ -581,47 +581,6 @@ Copyright (C) 2013-16 Cash Foley Software Consulting LLC
 
 # ----------------------------------------------------------------------------------
 
-function ExecuteValidators
-{
-     param
-     (
-         [array]
-         $RegExValidators,
-
-         [Object]
-         $SqlContent
-     )
- 
-    if ($RegExValidators -ne $null)
-    {
-        $errorFound = $false
-        foreach ($RegExValidator in $RegExValidators)
-        {
-            $ValidatorMatches = $SqlContent -match $RegExValidators
-            if ($ValidatorMatches)
-            {
-                #Need Validator Hash Table
-                Log-Error $validator.message
-                $errorFound = $TRUE
-            }
-        }
-        if ($errorFound)
-        {
-            Throw 'Validators Failed'
-        }
-    }
-}
-
-function ExecutePatchBatch
-{
-     param
-     (
-         [Object]
-         $PatchBatch
-     )
-
-
-}
 function Publish-Patches
 {
     [CmdletBinding(
@@ -705,7 +664,7 @@ function Initialize-SqlServerSafePatch
     # AssureSqlServerSafePatch
 }
 
-Export-ModuleMember -Function Initialize-SqlServerSafePatch -Verbose
+Export-ModuleMember -Function Initialize-SqlServerSafePatch
 
 $PublishWhatIf = $false
 
