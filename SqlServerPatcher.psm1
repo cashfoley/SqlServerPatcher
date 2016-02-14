@@ -40,20 +40,12 @@ class Patch
             return ''
         }
     }
-    hidden [string] ReplaceTokens([string]$str)
-    {
-        foreach ($TokenReplacement in $this.PatchContext.TokenReplacements)
-        {
-            $str = $str.Replace($TokenReplacement.TokenValue,$TokenReplacement.ReplacementValue)
-        }
-        return $str
-    }
 
     hidden [void] SetPatchContent()
     {
         $fileContent = Get-Content $this.PatchFile | Out-String
         $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                             ($this.GoScript($this.ReplaceTokens($fileContent))) + 
+                             ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
                              ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
@@ -72,8 +64,34 @@ class Patch
 }
 
 # ----------------------------------------------------------------------------------
+
+class TokenList
+{
+    hidden [array] $Tokens
+    
+    [string] ReplaceTokens([string]$str)
+    {
+        foreach ($Token in $this.Tokens)
+        {
+            $str = $str.Replace($Token.TokenValue,$Token.ReplacementValue)
+        }
+        return $str
+    }
+
+    [void] AddTokenPair([string]$TokenValue,[string]$ReplacementValue)
+    {
+        $this.Tokens += @{
+            TokenValue       = $TokenValue
+            ReplacementValue = $ReplacementValue
+            }
+    }
+}
+
+# ----------------------------------------------------------------------------------
 Class PatchContext
 {
+    [TokenList] $TokenList
+
     [bool]      $DisplayCallStack
     [hashtable] $SqlConstants
 
@@ -100,7 +118,7 @@ Class PatchContext
     [string] $RootFolderPath
     $Connection
     $SqlCommand
-    [array]  $TokenReplacements
+
     [string] $OutFolderPath
 
     PatchContext( $DBServerName
@@ -111,6 +129,8 @@ Class PatchContext
         )
     {
         $this.Environment = $EnvironmentParm
+
+        $this.TokenList = [TokenList]::new()
 
         $LoadSqlConstants = @()
         Import-LocalizedData -BaseDirectory $PSScriptRoot -FileName SqlConstants.psd1 -BindingVariable LoadSqlConstants
@@ -146,8 +166,6 @@ Class PatchContext
         $this.Connection.FireInfoMessageEventOnUserErrors = $false;
 
         $this.SqlCommand = $this.NewSqlCommand()
-
-        $this.TokenReplacements = @()
 
         $this.OutFolderPath = Join-Path $OutFolderPathParm (get-date -Format yyyy-MM-dd-HH.mm.ss.fff)
         if (! (Test-Path $this.OutFolderPath -PathType Container) )
@@ -619,21 +637,18 @@ Export-ModuleMember -Function Publish-Patches
 
 # ----------------------------------------------------------------------------------
 
-function Add-TokenReplacement 
+function Add-TokenReplacement
 {
      param
      (
-         [Object]
+         [string]
          $TokenValue,
 
-         [Object]
+         [string]
          $ReplacementValue
      )
 
-    $PatchContext.TokenReplacements += @{
-        TokenValue       = $TokenValue
-        ReplacementValue = $ReplacementValue
-    }
+    $PatchContext.TokenList.AddTokenPair($TokenValue,$ReplacementValue)
 }
 
 Export-ModuleMember -Function Add-TokenReplacemen
@@ -686,7 +701,6 @@ function Initialize-SqlServerSafePatch
     $script:QueuedPatches = [QueuedPatches]::New()
 
     $script:QueuedPatches.SetPatchContext($script:PatchContext)
-    $TokenReplacements = @()
 
     # AssureSqlServerSafePatch
 }
