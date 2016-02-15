@@ -18,60 +18,49 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerSafePatch].[FilePatches]') AND type in (N'U'))
 BEGIN
 CREATE TABLE [SqlServerSafePatch].[FilePatches](
-    [OID]        [bigint]   IDENTITY(1,1) NOT NULL,
-    [FilePath]   [nvarchar] (450) NOT NULL,
-    [Applied]    [datetime] NOT NULL,
-    [CheckSum]   [nvarchar] (512) NOT NULL,
-    [Content]    [nvarchar] (MAX),
-    [LogOutput]  [nvarchar] (MAX)
+    [OID]             [bigint]   IDENTITY(1,1) NOT NULL,
+    [FilePath]        [nvarchar] (450) NOT NULL,
+    [Applied]         [datetime] NOT NULL,
+	[ExecutedByForce] [bit] NULL,
+	[UpdatedOnChange] [bit] NULL,
+	[RollBacked]      [bit] NULL,
+    [CheckSum]        [nvarchar] (512) NOT NULL,
+    [PatchScript]     [nvarchar] (MAX),
+    [LogOutput]       [nvarchar] (MAX)
 ) ON [PRIMARY]
     
-CREATE UNIQUE NONCLUSTERED INDEX [UIDX_SqlServerSafePatchFilePatches_FilePath] ON [SqlServerSafePatch].[FilePatches]
-(
-    [FilePath] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
-
 END
 GO
 
 IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'#MarkPatchExecuted') AND type in (N'P', N'PC'))
 BEGIN
 EXEC dbo.sp_executesql @statement = N'
-    CREATE PROCEDURE #MarkPatchExecuted     
+	CREATE PROCEDURE #MarkPatchExecuted     
         @FilePath [nvarchar](450),
         @CheckSum [nvarchar](100),
-        @Content  [nvarchar](4000)
+        @PatchScript  [nvarchar](MAX),
+		@ExecutedByForce [bit],
+		@UpdatedOnChange [bit]
     AS
     BEGIN
         SET NOCOUNT ON;
 
-        DECLARE @OID bigint
-
-        SELECT @OID=OID
-            FROM [SqlServerSafePatch].[FilePatches]
-            WHERE FilePath = @FilePath
-
-        IF  (@@ROWCOUNT = 0)
-        BEGIN
-            INSERT 
-                INTO [SqlServerSafePatch].[FilePatches]
-                    ( [FilePath]
-                    , [Applied]
-                    , [CheckSum]
-                    , [Content])
-            VALUES (@FilePath
-                    , GetDate()
-                    , @CheckSum
-                    , @Content)
-        END
-        ELSE BEGIN
-            UPDATE [SqlServerSafePatch].[FilePatches]
-                SET CheckSum=@CheckSum
-                    , Applied=GetDate()
-                    , Content=@Content
-                WHERE OID=@OID
-                AND CheckSum<>@CheckSum
-        END
+        INSERT 
+            INTO [SqlServerSafePatch].[FilePatches]
+                ( [FilePath]
+                , [Applied]
+                , [CheckSum]
+                , [PatchScript]
+				, [ExecutedByForce]
+				, [UpdatedOnChange]
+                )
+         VALUES ( @FilePath
+                , GetDate()
+                , @CheckSum
+                , @PatchScript
+				, @ExecutedByForce
+				, @UpdatedOnChange
+				)
     END
 ' 
 END
@@ -94,14 +83,16 @@ END
 
 ############################################################################################################################
     ChecksumForPatchQuery = @"
-SELECT CheckSum
-    FROM [SqlServerSafePatch].[FilePatches]
-    WHERE FilePath = @FilePath
+SELECT ChecKSum 
+  FROM [SqlServerSafePatch].[FilePatches]
+ WHERE OID = (SELECT MAX(OID)
+                FROM [SqlServerSafePatch].[FilePatches]
+               WHERE FilePath = @FilePath)
 "@
 
 ############################################################################################################################
 
-    MarkPatchAsExecutedQuery = "EXEC #MarkPatchExecuted N'{0}',N'{1}',N'{2}'"
+    MarkPatchAsExecutedQuery = "EXEC #MarkPatchExecuted N'{0}',N'{1}',N'{2}',N'{3}',N'{4}'"
 
 ############################################################################################################################
 

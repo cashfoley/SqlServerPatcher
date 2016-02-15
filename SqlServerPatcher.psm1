@@ -408,7 +408,7 @@ Class PatchContext
     # ----------------------------------------------------------------------------------
     [string] GetMarkPatchAsExecutedString($filePath, $Checksum, $Content)
     {
-        return $this.SqlConstants.MarkPatchAsExecutedQuery -f $filePath.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''")
+        return $this.SqlConstants.MarkPatchAsExecutedQuery -f $filePath.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
     }
 
     # ----------------------------------------------------------------------------------
