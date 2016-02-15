@@ -23,12 +23,79 @@ class Patch
     [string]             $PatchName
     [string]             $CheckSum
     [string]             $DatabaseCheckSum
-    [string]             $PatchContent
+    [string]             $PatchContent    = ''
+    [string]             $RollbackContent = ''
     [bool]               $Force
     [bool]               $ReExecuteOnChange
 
     $PatchAttributes = @{}
 
+    # ----------------------------------------------------------------------------------
+
+    Patch ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile,$Force,$ReExecuteOnChange)
+    {
+        $this.PatchContext = $PatchContext
+        $this.PatchFile = $PatchFile
+        $this.PatchAttributes = @{}
+
+        $fullname = $Patchfile.FullName
+        if (! $fullname.StartsWith($this.PatchContext.RootFolderPath))
+        {
+            Throw ("Patchfile '{0}' not under RootFolder '{1}'" -f $PatchFile,$this.RootFolderPath)
+        }
+        
+        $RootPatchName = $fullName.Replace($this.PatchContext.RootFolderPath, '')
+
+        if ($RootPatchName -notmatch '(?<name>.*?)(?<r>.rollback)?.sql')
+        {
+            Throw ("Invalid Patch Name '{0'}" -f $RootPatchName)
+        }
+
+        $this.PatchName = $Matches['name'] + '.sql'
+        if ($Matches['r'] -eq '.rollback')
+        {
+            $fileContent = Get-Content $this.PatchFile | Out-String
+            $this.RollbackContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
+                                    ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
+                                    # ($this.GoScript($this.PatchContext.GetMarkPatchAsRollbackString($this.PatchName))) +
+                                    ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
+        }
+        else
+        {
+            $this.Force = $Force
+            $this.ReExecuteOnChange = $ReExecuteOnChange
+
+            $this.CheckSum = $This.GetFileChecksum($PatchFile)
+            $this.DatabaseCheckSum = [string]($this.PatchContext.GetChecksumForPatch($this.PatchName))
+
+            $fileContent = Get-Content $this.PatchFile | Out-String
+            $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
+                                 ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
+                                 ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
+                                 ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
+        }
+
+     }
+
+    # ----------------------------------------------------------------------------------
+    
+        [void] MergePatch([Patch]$NewPatch)
+        {
+            if ($NewPatch.RollbackContent -ne '')
+            {
+                $this.RollbackContent = $NewPatch.RollbackContent
+            }
+            
+            if ($NewPatch.PatchContent -ne '')
+            {
+                $this.Force             = $NewPatch.Force
+                $this.ReExecuteOnChange = $NewPatch.ReExecuteOnChange
+                $this.CheckSum          = $NewPatch.CheckSum
+                $this.DatabaseCheckSum  = $NewPatch.DatabaseCheckSum
+                $this.PatchContent      = $NewPatch.PatchContent
+            }
+        }
+    
     # ----------------------------------------------------------------------------------
     [string] GetFileChecksum ([System.IO.FileInfo] $fileInfo)
     {
@@ -60,28 +127,7 @@ class Patch
 
     hidden [void] SetPatchContent()
     {
-        $fileContent = Get-Content $this.PatchFile | Out-String
-        $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                             ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
-                             ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
-                             ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
-
-    Patch ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile,$Force,$ReExecuteOnChange)
-    {
-        $this.PatchContext = $PatchContext
-        $this.PatchFile = $PatchFile
-        $this.PatchName = $this.PatchContext.GetPatchName($PatchFile.FullName)
-        $this.Force = $Force
-        $this.ReExecuteOnChange = $ReExecuteOnChange
-
-        $this.PatchAttributes = @{}
-
-        $this.CheckSum = $This.GetFileChecksum($PatchFile)
-        $this.DatabaseCheckSum = [string]($this.PatchContext.GetChecksumForPatch($this.PatchName))
-
-        $this.SetPatchContent()
-     }
 
      [bool] ShouldExecute()
      {
@@ -303,16 +349,6 @@ Class PatchContext
         }
     }
     # ----------------------------------------------------------------------------------
-    [string] GetPatchName( [string]$PatchFile )
-    {
-        if (! $Patchfile.StartsWith($this.RootFolderPath))
-        {
-            Throw ("Patchfile '{0}' not under RootFolder '{1}'" -f $PatchFile,$this.RootFolderPath)
-        }
-        return $PatchFile.Replace($this.RootFolderPath, '')
-    }
-
-    # ----------------------------------------------------------------------------------
     [void] NewSqlCommand($CommandText='')
     {
         $NewSqlCmd = $this.Connection.CreateCommand()
@@ -428,10 +464,15 @@ class QueuedPatches : System.Collections.ArrayList {
     {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
-        $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
-        if (!($this.Where({$_.PatchName -eq $Patch.PatchName})))
+        [Patch]$Patch = [Patch]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
+        [Patch]$ExistingPatch = $this | ?{$_.PatchName -eq $Patch.PatchName}
+        if (!($ExistingPatch))
         {
             [void]$this.Add($Patch)
+        }
+        else
+        {
+            $ExistingPatch.MergePatch($Patch)
         }
     }
 
@@ -510,8 +551,6 @@ class QueuedPatches : System.Collections.ArrayList {
         }
         $this.PatchContext.Connection.Close()
     }
-
-
 }
 
 ################################################################################################################
@@ -699,3 +738,6 @@ $PublishWhatIf = $false
 
 Export-ModuleMember -Variable QueuedPatches
 
+########################################################################################
+# 
+#  Validate there aren't any Rollbacks without patches
