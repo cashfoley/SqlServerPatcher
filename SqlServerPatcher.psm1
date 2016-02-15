@@ -71,7 +71,7 @@ class Patch
             $fileContent = Get-Content $this.PatchFile | Out-String
             $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
                                  ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
-                                 ($this.GoScript($this.PatchContext.GetMarkPatchAsExecutedString($this.PatchName, $this.Checksum, ''))) +
+                                 ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, ''))) +
                                  ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
         }
 
@@ -406,15 +406,15 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [string] GetMarkPatchAsExecutedString($PatchName, $Checksum, $Content)
+    [string] GetInsertFilePatchString($PatchName, $Checksum, $Content)
     {
-        return $this.SqlConstants.MarkPatchAsExecutedQuery -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
+        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
     }
 
     # ----------------------------------------------------------------------------------
-    [void] MarkPatchAsExecuted($PatchName, $Checksum, $Content)
+    [void] InsertFilePatch($PatchName, $Checksum, $Content)
     {
-        $this.ExecuteNonQuery($this.GetMarkPatchAsExecutedString($PatchName,$Checksum, $Content))
+        $this.ExecuteNonQuery($this.GetInsertFilePatchString($PatchName,$Checksum, $Content))
     }
 
     # ----------------------------------------------------------------------------------
@@ -517,7 +517,7 @@ class QueuedPatches : System.Collections.ArrayList {
                     #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
                     #{
                         Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
-                        $this.PatchContext.MarkPatchAsExecuted($Patch.PatchName, $Patch.Checksum, '')
+                        $this.PatchContext.InsertFilePatch($Patch.PatchName, $Patch.Checksum, '')
                     #}
                 }
                 else

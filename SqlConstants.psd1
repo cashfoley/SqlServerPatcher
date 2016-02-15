@@ -32,10 +32,10 @@ CREATE TABLE [SqlServerSafePatch].[FilePatches](
 END
 GO
 
-IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'#MarkPatchExecuted') AND type in (N'P', N'PC'))
+IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'#InsertFilePatch') AND type in (N'P', N'PC'))
 BEGIN
 EXEC dbo.sp_executesql @statement = N'
-	CREATE PROCEDURE #MarkPatchExecuted     
+	CREATE PROCEDURE #InsertFilePatch     
         @PatchName [nvarchar](450),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
@@ -92,7 +92,7 @@ SELECT ChecKSum
 
 ############################################################################################################################
 
-    MarkPatchAsExecutedQuery = "EXEC #MarkPatchExecuted N'{0}',N'{1}',N'{2}',N'{3}',N'{4}'"
+    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}'"
 
 ############################################################################################################################
 
