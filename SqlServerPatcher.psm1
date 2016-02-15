@@ -335,12 +335,12 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [string] GetChecksumForPatch($filePath)
+    [string] GetChecksumForPatch($PatchName)
     {
         if ($this.SqlServerSafePatchVersion -gt 0)
         {
             $this.NewSqlCommand($this.SqlConstants.ChecksumForPatchQuery)
-            ($this.SqlCommand.Parameters.Add('@FilePath',$null)).value = $filePath
+            ($this.SqlCommand.Parameters.Add('@PatchName',$null)).value = $PatchName
             return $this.SqlCommand.ExecuteScalar()
         }
         else
@@ -406,15 +406,15 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [string] GetMarkPatchAsExecutedString($filePath, $Checksum, $Content)
+    [string] GetMarkPatchAsExecutedString($PatchName, $Checksum, $Content)
     {
-        return $this.SqlConstants.MarkPatchAsExecutedQuery -f $filePath.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
+        return $this.SqlConstants.MarkPatchAsExecutedQuery -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
     }
 
     # ----------------------------------------------------------------------------------
-    [void] MarkPatchAsExecuted($filePath, $Checksum, $Content)
+    [void] MarkPatchAsExecuted($PatchName, $Checksum, $Content)
     {
-        $this.ExecuteNonQuery($this.GetMarkPatchAsExecutedString($filePath,$Checksum, $Content))
+        $this.ExecuteNonQuery($this.GetMarkPatchAsExecutedString($PatchName,$Checksum, $Content))
     }
 
     # ----------------------------------------------------------------------------------

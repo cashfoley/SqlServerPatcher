@@ -19,7 +19,7 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServe
 BEGIN
 CREATE TABLE [SqlServerSafePatch].[FilePatches](
     [OID]             [bigint]   IDENTITY(1,1) NOT NULL,
-    [FilePath]        [nvarchar] (450) NOT NULL,
+    [PatchName]        [nvarchar] (450) NOT NULL,
     [Applied]         [datetime] NOT NULL,
 	[ExecutedByForce] [bit] NULL,
 	[UpdatedOnChange] [bit] NULL,
@@ -36,7 +36,7 @@ IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'#MarkPat
 BEGIN
 EXEC dbo.sp_executesql @statement = N'
 	CREATE PROCEDURE #MarkPatchExecuted     
-        @FilePath [nvarchar](450),
+        @PatchName [nvarchar](450),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
 		@ExecutedByForce [bit],
@@ -47,14 +47,14 @@ EXEC dbo.sp_executesql @statement = N'
 
         INSERT 
             INTO [SqlServerSafePatch].[FilePatches]
-                ( [FilePath]
+                ( [PatchName]
                 , [Applied]
                 , [CheckSum]
                 , [PatchScript]
 				, [ExecutedByForce]
 				, [UpdatedOnChange]
                 )
-         VALUES ( @FilePath
+         VALUES ( @PatchName
                 , GetDate()
                 , @CheckSum
                 , @PatchScript
@@ -87,7 +87,7 @@ SELECT ChecKSum
   FROM [SqlServerSafePatch].[FilePatches]
  WHERE OID = (SELECT MAX(OID)
                 FROM [SqlServerSafePatch].[FilePatches]
-               WHERE FilePath = @FilePath)
+               WHERE PatchName = @PatchName)
 "@
 
 ############################################################################################################################
