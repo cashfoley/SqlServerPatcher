@@ -3,23 +3,6 @@ Import-Module $PSScriptRoot -Force
 
 
 #cls
-
-$ErrorActionPreference = 'Stop'
-Set-StrictMode -Version 2
-
-$TestSqlServer = '.'
-$TestDatabase = 'ScriptTest'
-
-$DeleteDatabaseScript = @"
-IF EXISTS(select * from sys.databases where name='{0}')
-BEGIN
-    ALTER DATABASE [{0}] SET  SINGLE_USER WITH ROLLBACK IMMEDIATE
-    DROP DATABASE [{0}]
-END
-"@
-
-$CreateDatabaseScript = 'CREATE DATABASE [{0}]'
-
 function Initialize-TestDatabase
 {
      param
@@ -57,17 +40,6 @@ function Initialize-TestDatabase
 
 }
 
-
-#$Connection = $null
-#Describe "Get-SqlConnecti)n" {
-#    It 'Connects to our Test SQL Server ' {
-#        $script:connection = Get-SqlConnection $TestSqlServer
-#        $connection.State | Should Be 'Open'
-#    }
-#}
-#
-#$Connection.State
-
 function Test-ForPatches
 {
      param
@@ -79,7 +51,7 @@ function Test-ForPatches
          [string] $Description='Verify Patches Included'
      )
 
-    $PatchNames = Get-ExecutablePatches| %{$_.PatchName}
+    $PatchNames = (Get-ExecutablePatches) | %{$_.PatchName}
     Describe $Description {
         if (! $PartialList)
         { 
@@ -135,10 +107,6 @@ function Test-ForSqlObjects
     }
 }
 
-
-$outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
-$rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
-
 function InitDbPatches
 {
      param
@@ -158,12 +126,6 @@ function InitDbPatches
 
 ##############################################################################################################################
 
-$Connection = Initialize-TestDatabase $TestSqlServer
-
-InitDbPatches -Environment 'Dev'
-
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
-
 function Test-EnvironmentPatches
 {
      param([string] $Environment)
@@ -182,14 +144,34 @@ function Test-EnvironmentPatches
     )
 }
 
-# ------------------------------------
+##############################################################################################################################
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2
+
+$TestSqlServer = '.'
+$TestDatabase = 'ScriptTest'
+
+$DeleteDatabaseScript = @"
+IF EXISTS(select * from sys.databases where name='{0}')
+BEGIN
+    ALTER DATABASE [{0}] SET  SINGLE_USER WITH ROLLBACK IMMEDIATE
+    DROP DATABASE [{0}]
+END
+"@
+
+$CreateDatabaseScript = 'CREATE DATABASE [{0}]'
+
+$outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
+$rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
+
+##############################################################################################################################
+
+$Connection = Initialize-TestDatabase $TestSqlServer
 
 Test-EnvironmentPatches -Environment 'Dev' 
 Test-EnvironmentPatches -Environment 'Test'
 Test-EnvironmentPatches -Environment 'Prod'
-
-
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Select-Object -First 5 | Add-SqlDbPatches #-Verbose   
 
 ##############################################################################################################################
 #  Verfify Checkpoint 
@@ -260,11 +242,23 @@ Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches
 
 Describe 'Verify No Patches to be run after publish' {
     It 'Should contain 0 Patches' {
-        Get-ExecutablePatches | Should be $null
+        (Get-ExecutablePatches) | Should be $null
     }
 }
 
 Publish-Patches
+InitDbPatches
+
+Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Force
+
+Test-ForPatches -TestPatchNames @(
+    'BeforeOneTime\01_SampleItems.sql'
+    'BeforeOneTime\02_ScriptsRun.sql'
+    'BeforeOneTime\03_ScriptsRunErrors.sql'
+    'BeforeOneTime\04_Version.sql'
+)
+
+InitDbPatches
 
 ##############################################################################################################################
 

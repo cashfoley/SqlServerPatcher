@@ -24,6 +24,8 @@ class Patch
     [string]             $CheckSum
     [string]             $DatabaseCheckSum
     [string]             $PatchContent
+    [bool]               $Force
+    [bool]               $ReExecuteOnChange
 
     $PatchAttributes = @{}
 
@@ -65,11 +67,13 @@ class Patch
                              ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
     }
 
-    Patch ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile)
+    Patch ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile,$Force,$ReExecuteOnChange)
     {
         $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
         $this.PatchName = $this.PatchContext.GetPatchName($PatchFile.FullName)
+        $this.Force = $Force
+        $this.ReExecuteOnChange = $ReExecuteOnChange
 
         $this.PatchAttributes = @{}
 
@@ -78,6 +82,38 @@ class Patch
 
         $this.SetPatchContent()
      }
+
+     [bool] ShouldExecute()
+     {
+        if (! ($this.PatchContext.TestEnvironment($this.PatchName) ) )
+        {
+            # Write-Verbose "`$($this.PatchName) ignored because it is the wrong target environment"
+            return $false
+        }
+
+        if ($this.Force)
+        {
+            return $true
+        }
+        
+        if ($this.Checksum -ne $this.DatabaseCheckSum)
+        {
+            if (!$this.ReExecuteOnChange -and ($this.DatabaseCheckSum -ne ''))
+            {
+                #Write-Warning "Patch $($this.PatchName) has changed but will be ignored"
+                return $false
+            }
+            else
+            {
+                return $true
+            }
+        }
+        else
+        {
+            #Write-Verbose "Patch $($this.PatchName) current" 
+            return $false
+        }
+    }
 }
 
 ################################################################################################################
@@ -392,34 +428,10 @@ class QueuedPatches : System.Collections.ArrayList {
     {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
-
-        if (! ($this.PatchContext.TestEnvironment($PatchFullName) ) )
+        $Patch = [Patch]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
+        if (!($this.Where({$_.PatchName -eq $Patch.PatchName})))
         {
-            Write-Verbose "`$PatchFullName ignored because it is the wrong target environment"
-        }
-        else
-        {
-            $Patch = [Patch]::new($this.PatchContext,$PatchFullName)
-                    
-            if ($Patch.Checksum -ne $Patch.DatabaseCheckSum -or $Force)
-            {
-                if (!$ReExecuteOnChange -and ($Patch.DatabaseCheckSum -ne ''))
-                {
-                    Write-Warning "Patch $($Patch.PatchName) has changed but will be ignored"
-                }
-                elseif ($this.Where({$_.PatchName -eq $Patch.PatchName}))
-                {
-                    Write-Verbose "$($Patch.PatchName) ignored because it is already queued"
-                }
-                else
-                {
-                    [void]$this.Add($Patch)
-                }
-            }
-            else
-            {
-                Write-Verbose "Patch $($Patch.PatchName) current" 
-            }
+            [void]$this.Add($Patch)
         }
     }
 
@@ -433,9 +445,15 @@ class QueuedPatches : System.Collections.ArrayList {
         $this.RemoveAt(0)    
     }
 
+    [Patch[]] GetExecutablePatches()
+    {
+        $patches = $this | Where-Object{$_.ShouldExecute()}
+        return [array]($patches)
+    }
+
     [int] GetPatchCount()
     {
-        return $this.count
+        return ($this.GetExecutablePatches()).count
     }
 
     [void] PerformPatches()
@@ -596,13 +614,10 @@ Export-ModuleMember -Function Publish-Patches
 
 function Get-ExecutablePatches
 {
-    $result = @()
-    foreach ($Patch in $QueuedPatches)
+    foreach ($patch in $QueuedPatches.GetExecutablePatches())
     {
-        $result += $Patch
+        $patch
     }
-
-    return [array]$result
 }
 
 Export-ModuleMember -Function Get-ExecutablePatches
@@ -682,5 +697,5 @@ $PublishWhatIf = $false
 
 [QueuedPatches]$QueuedPatches = [QueuedPatches]::New()
 
-# Export-ModuleMember -Variable QueuedPatches
+Export-ModuleMember -Variable QueuedPatches
 
