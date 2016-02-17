@@ -54,7 +54,7 @@ class Patch
         $this.PatchName = $Matches['name'] + '.sql'
         if ($Matches['r'] -eq '.rollback')
         {
-            $fileContent = Get-Content $this.PatchFile | Out-String
+            $fileContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
             $this.RollbackContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
                                     ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
                                     # ($this.GoScript($this.PatchContext.GetMarkPatchAsRollbackString($this.PatchName))) +
@@ -68,10 +68,11 @@ class Patch
             $this.CheckSum = $This.GetFileChecksum($PatchFile)
             $this.DatabaseCheckSum = [string]($this.PatchContext.GetChecksumForPatch($this.PatchName))
 
-            $fileContent = Get-Content $this.PatchFile | Out-String
+            $fileContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
+            $escapedfileContent = $fileContent.Replace("'","''")
             $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                                 ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
-                                 ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, ''))) +
+                                 ($this.GoScript($fileContent)) + 
+                                 ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, $escapedfileContent))) +
                                  ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
         }
 
@@ -210,7 +211,27 @@ Class PatchContext
     [string] $Environment = $EnvironmentParm
 
     hidden [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
-    hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
+    #hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
+    hidden [string] $QueriesExpression = @"
+(
+ (?'Query'                     # Beginning of Query
+ ( 
+   (--.*?$)                            
+  |(/\*.*?\*/)                 # Scan for /* comments */ - Ignores GO lines in comments
+  |('                          # OR - Beginning of a string quote 
+    (?>                        # Begin Atomic Group
+     (?>''|[^']+)+)            # Another Atomic Group.  Matches a '' or any non '
+     '                         # Single Quote ends quoted string.  
+     (?!')                     # Lookahead makes sure it's a single quote
+   )                           # End of Quoted string group
+ | .                           # OR - add a character to the Query.
+ )*?)                          # End of 'Query' group.  (GO line is not included)
+ (                             #
+     (^\s*go\s*$)              # do this until a GO line  
+ | (?!.)                       # OR no more characters (end of string)
+ )                             # (queries end on a GO or end of string)
+)*                             # rinse and repeat for all queries
+"@
 
     [System.Text.RegularExpressions.Regex] $QueriesRegex  = `
         ( New-Object System.Text.RegularExpressions.Regex `
