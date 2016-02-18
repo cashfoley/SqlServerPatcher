@@ -16,8 +16,6 @@ Copyright (C) 2013-16 Cash Foley Software Consulting LLC
 ################################################################################################################
 class Patch
 {
-    hidden $Content
-
     [PatchContext]       $PatchContext
     [System.IO.FileInfo] $PatchFile
     [string]             $PatchName
@@ -54,11 +52,7 @@ class Patch
         $this.PatchName = $Matches['name'] + '.sql'
         if ($Matches['r'] -eq '.rollback')
         {
-            $fileContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
-            $this.RollbackContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                                    ($this.GoScript($this.PatchContext.TokenList.ReplaceTokens($fileContent))) + 
-                                    # ($this.GoScript($this.PatchContext.GetMarkPatchAsRollbackString($this.PatchName))) +
-                                    ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
+            $this.RollbackContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
         }
         else
         {
@@ -68,34 +62,46 @@ class Patch
             $this.CheckSum = $This.GetFileChecksum($PatchFile)
             $this.DatabaseCheckSum = [string]($this.PatchContext.GetChecksumForPatch($this.PatchName))
 
-            $fileContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
-            $escapedfileContent = $fileContent.Replace("'","''")
-            $this.PatchContent = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
-                                 ($this.GoScript($fileContent)) + 
-                                 ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, $escapedfileContent))) +
-                                 ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
+            $this.PatchContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
         }
 
      }
 
     # ----------------------------------------------------------------------------------
+
+    [string] GetPatchScript()
+    {
+        $escapedfileContent = $this.PatchContent.Replace("'","''")
+        $escapedRollbackPatch = $this.RollbackContent.Replace("'","''")
+
+        $PatchScript = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
+                       ($this.GoScript($this.PatchContent)) + 
+                       ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, $escapedfileContent, $escapedRollbackPatch,''))) +
+                       ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
+        
+        return $PatchScript
+    }
+
+    # ----------------------------------------------------------------------------------
     
-        [void] MergePatch([Patch]$NewPatch)
+    [void] MergePatch([Patch]$NewPatch)
+    {
+        if ($NewPatch.RollbackContent -ne '')
         {
-            if ($NewPatch.RollbackContent -ne '')
-            {
-                $this.RollbackContent = $NewPatch.RollbackContent
-            }
-            
-            if ($NewPatch.PatchContent -ne '')
-            {
-                $this.Force             = $NewPatch.Force
-                $this.ReExecuteOnChange = $NewPatch.ReExecuteOnChange
-                $this.CheckSum          = $NewPatch.CheckSum
-                $this.DatabaseCheckSum  = $NewPatch.DatabaseCheckSum
-                $this.PatchContent      = $NewPatch.PatchContent
-            }
+            $this.RollbackContent = $NewPatch.RollbackContent
         }
+            
+        if ($NewPatch.PatchContent -ne '')
+        {
+            $this.Force             = $NewPatch.Force
+            $this.ReExecuteOnChange = $NewPatch.ReExecuteOnChange
+            $this.CheckSum          = $NewPatch.CheckSum
+            $this.DatabaseCheckSum  = $NewPatch.DatabaseCheckSum
+            $this.PatchContent      = $NewPatch.PatchContent
+            $this.PatchName         = $NewPatch.PatchName
+            $this.PatchFile         = $NewPatch.PatchFile
+        }
+    }
     
     # ----------------------------------------------------------------------------------
     [string] GetFileChecksum ([System.IO.FileInfo] $fileInfo)
@@ -427,15 +433,15 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [string] GetInsertFilePatchString($PatchName, $Checksum, $Content)
+    [string] GetInsertFilePatchString($PatchName, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
     {
-        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
+        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),$RollbackScript.Replace("'","''"),$RollbackChecksum.Replace("'","''"),'0','0'
     }
 
     # ----------------------------------------------------------------------------------
-    [void] InsertFilePatch($PatchName, $Checksum, $Content)
+    [void] InsertFilePatch($PatchName, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
     {
-        $this.ExecuteNonQuery($this.GetInsertFilePatchString($PatchName,$Checksum, $Content))
+        $this.ExecuteNonQuery($this.GetInsertFilePatchString($PatchName,$Checksum, $Content,$RollbackScript,$RollbackChecksum))
     }
 
     # ----------------------------------------------------------------------------------
@@ -538,7 +544,7 @@ class QueuedPatches : System.Collections.ArrayList {
                     #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
                     #{
                         Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
-                        $this.PatchContext.InsertFilePatch($Patch.PatchName, $Patch.Checksum, '')
+                        $this.PatchContext.InsertFilePatch($Patch.PatchName, $Patch.Checksum, '', '', '')
                     #}
                 }
                 else
@@ -546,14 +552,16 @@ class QueuedPatches : System.Collections.ArrayList {
                     Write-Host $Patch.PatchName
                     
                     $WhatifExecute = $false
-                    $this.PatchContext.OutPatchFile($Patch.PatchName, $Patch.patchContent)
+                    $patchScript = $Patch.GetPatchScript()
+
+                    $this.PatchContext.OutPatchFile($Patch.PatchName, $patchScript)
 
                     if (!$WhatIfExecute)
                     {
                         $this.PatchContext.NewSqlCommand()
                         try
                         {
-                            $this.PatchContext.ExecuteNonQuery( $Patch.patchContent )
+                            $this.PatchContext.ExecuteNonQuery( $patchScript )
                         }
                         Catch
                         {

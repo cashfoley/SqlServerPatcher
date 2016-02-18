@@ -18,15 +18,17 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerSafePatch].[FilePatches]') AND type in (N'U'))
 BEGIN
 CREATE TABLE [SqlServerSafePatch].[FilePatches](
-    [OID]             [bigint]   IDENTITY(1,1) NOT NULL,
-    [PatchName]        [nvarchar] (450) NOT NULL,
-    [Applied]         [datetime] NOT NULL,
-	[ExecutedByForce] [bit] NULL,
-	[UpdatedOnChange] [bit] NULL,
-	[RollBacked]      [bit] NULL,
-    [CheckSum]        [nvarchar] (512) NOT NULL,
-    [PatchScript]     [nvarchar] (MAX),
-    [LogOutput]       [nvarchar] (MAX)
+    [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
+    [PatchName]         [nvarchar] (450) NOT NULL,
+    [Applied]           [datetime] NOT NULL,
+	[ExecutedByForce]   [bit] NULL,
+	[UpdatedOnChange]   [bit] NULL,
+	[RollBacked]        [bit] NULL,
+    [CheckSum]          [nvarchar] (512) NOT NULL,
+    [PatchScript]       [nvarchar] (MAX),
+    [RollbackScript]    [nvarchar] (max),
+    [RollbackChecksum]  [nvarchar] (512),
+    [LogOutput]         [nvarchar] (MAX)
 ) ON [PRIMARY]
     
 END
@@ -39,6 +41,8 @@ EXEC dbo.sp_executesql @statement = N'
         @PatchName [nvarchar](450),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
+        @RollbackScript  [nvarchar](MAX),
+        @RollbackCheckSum [nvarchar](100),
 		@ExecutedByForce [bit],
 		@UpdatedOnChange [bit]
     AS
@@ -51,6 +55,8 @@ EXEC dbo.sp_executesql @statement = N'
                 , [Applied]
                 , [CheckSum]
                 , [PatchScript]
+                , [RollbackScript]
+                , [RollbackCheckSum]
 				, [ExecutedByForce]
 				, [UpdatedOnChange]
                 )
@@ -58,6 +64,8 @@ EXEC dbo.sp_executesql @statement = N'
                 , GetDate()
                 , @CheckSum
                 , @PatchScript
+                , @RollbackScript
+                , @RollbackCheckSum
 				, @ExecutedByForce
 				, @UpdatedOnChange
 				)
@@ -92,7 +100,7 @@ SELECT ChecKSum
 
 ############################################################################################################################
 
-    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}'"
+    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
 
 ############################################################################################################################
 
