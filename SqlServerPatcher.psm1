@@ -174,6 +174,53 @@ class Patch
 ################################################################################################################
 ################################################################################################################
 
+class ExecutedPatch
+{
+
+    [int]      $OID
+    [string]   $PatchName
+    [datetime] $Applied
+    [bool]     $ExecutedByForce
+    [bool]     $UpdatedOnChange
+    [bool]     $RollBacked
+    [string]   $CheckSum
+    [string]   $PatchScript
+    [string]   $RollbackScript
+    [string]   $RollbackChecksum
+    [string]   $LogOutput
+
+    ExecutedPatch(
+          $OID
+        , $PatchName
+        , $Applied
+        , $ExecutedByForce
+        , $UpdatedOnChange
+        , $RollBacked
+        , $CheckSum
+        , $PatchScript
+        , $RollbackScript
+        , $RollbackChecksum
+        , $LogOutput
+        )
+    {
+      $this.OID               = $OID
+      $this.PatchName         = $PatchName
+      $this.Applied           = $Applied
+      $this.ExecutedByForce   = $ExecutedByForce
+      $this.UpdatedOnChange   = $UpdatedOnChange
+      $this.RollBacked        = $RollBacked
+      $this.CheckSum          = $CheckSum
+      $this.PatchScript       = $PatchScript
+      $this.RollbackScript    = $RollbackScript
+      $this.RollbackChecksum  = $RollbackChecksum
+      $this.LogOutput         = $LogOutput
+    }
+}
+
+###############################################################################################################
+################################################################################################################
+################################################################################################################
+
 class TokenList
 {
     hidden [array] $Tokens

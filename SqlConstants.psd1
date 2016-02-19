@@ -79,6 +79,23 @@ COMMIT TRANSACTION;
 
 ############################################################################################################################
 
+    SelectFilePatchesQuery = @"
+SELECT [OID]
+      ,[PatchName]
+      ,[Applied]
+      ,[ExecutedByForce]
+      ,[UpdatedOnChange]
+      ,[RollBacked]
+      ,[CheckSum]
+      ,[PatchScript]
+      ,[RollbackScript]
+      ,[RollbackChecksum]
+      ,[LogOutput]
+  FROM [SqlSafePatch].[FilePatches]
+"@
+
+############################################################################################################################
+
     GetSqlSafePatchVersion = @"
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlSafePatch].[FilePatches]') AND type in (N'U'))
 BEGIN
