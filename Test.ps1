@@ -115,7 +115,7 @@ function InitDbPatches
        , [switch] $Checkpoint
      )
 
-    Initialize-SqlServerSafePatch -ServerName $TestSqlServer `
+    Initialize-SqlSafePatch -ServerName $TestSqlServer `
                           -DatabaseName $TestDatabase `
                           -RootFolderPath $rootFolderPath `
                           -OutFolderPath $outFolderPath `
