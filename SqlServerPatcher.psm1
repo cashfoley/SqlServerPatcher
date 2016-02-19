@@ -25,6 +25,7 @@ class Patch
     [string]             $RollbackContent = ''
     [bool]               $Force
     [bool]               $ReExecuteOnChange
+    [bool]               $Executed
 
     $PatchAttributes = @{}
 
@@ -151,7 +152,7 @@ class Patch
         
         if ($this.Checksum -ne $this.DatabaseCheckSum)
         {
-            if (!$this.ReExecuteOnChange -and ($this.DatabaseCheckSum -ne ''))
+            if (!$this.ReExecuteOnChange -and ($this.DatabaseCheckSum -ne '') -and !$this.Executed)
             {
                 #Write-Warning "Patch $($this.PatchName) has changed but will be ignored"
                 return $false
@@ -534,10 +535,8 @@ class QueuedPatches : System.Collections.ArrayList {
         try
         {
             $this.PatchContext.AssureSqlServerSafePatch()
-            while ($this.GetPatchCount() -gt 0)
+            foreach ($Patch in $this.GetExecutablePatches())
             {
-                $Patch = $this.GetTopPatch()
-                
                 $this.PatchContext.NewSqlCommand()
                 if ($this.PatchContext.CheckPoint)
                 {
@@ -545,6 +544,7 @@ class QueuedPatches : System.Collections.ArrayList {
                     #{
                         Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
                         $this.PatchContext.InsertFilePatch($Patch.PatchName, $Patch.Checksum, '', '', '')
+                        $Patch.Executed = $True
                     #}
                 }
                 else
@@ -562,6 +562,7 @@ class QueuedPatches : System.Collections.ArrayList {
                         try
                         {
                             $this.PatchContext.ExecuteNonQuery( $patchScript )
+                            $Patch.Executed = $True
                         }
                         Catch
                         {
@@ -571,7 +572,6 @@ class QueuedPatches : System.Collections.ArrayList {
                     }
 
                 }
-                $this.RemoveTopPatch()
             }
         }
         Catch

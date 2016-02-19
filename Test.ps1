@@ -258,7 +258,7 @@ Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\04_Version.sql'
 )
 
-InitDbPatches
+#InitDbPatches
 
 ##############################################################################################################################
 
