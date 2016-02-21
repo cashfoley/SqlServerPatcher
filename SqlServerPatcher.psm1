@@ -774,6 +774,44 @@ Export-ModuleMember -Function Get-ExecutablePatches
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
+function Get-PatchHistory
+{
+    param([switch] $ShowAllFields)
+
+    $ExecutedPatches = $QueuedPatches.PatchContext.GetExecutedPatches()
+
+    if ($ShowAllFields)
+    {
+        $ExecutedPatches
+    }
+    else
+    {
+        foreach ($ExecutedPatch in $ExecutedPatches)
+        {
+            $RollbackStatus = 'Not Available'
+            if ($ExecutedPatch.RollBacked)
+            {
+                $RollbackStatus = 'Completed'
+            }
+            elseif ($ExecutedPatch.RollbackScript)
+            {
+                $RollbackStatus = 'Available'
+            }
+            [PSCustomObject]@{ OID=$ExecutedPatch.OID
+                               PatchName=$ExecutedPatch.PatchName
+                               Applied=$ExecutedPatch.Applied
+                               RollBackStatus = $RollbackStatus
+                             }
+        }
+        #$ExecutedPatches | %{[psobject]::new(@{OID=$_.OID;PatchName=$_.PatchName})}
+    }
+}
+
+Export-ModuleMember -Function Get-PatchHistory
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 function Add-TokenReplacement
 {
     param([string]$TokenValue, [string]$ReplacementValue)

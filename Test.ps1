@@ -260,8 +260,6 @@ Test-ForPatches -TestPatchNames @(
 
 #InitDbPatches
 
-$ExecutedPatches = $QueuedPatches.PatchContext.GetExecutedPatches()
-
 ##############################################################################################################################
 
 
