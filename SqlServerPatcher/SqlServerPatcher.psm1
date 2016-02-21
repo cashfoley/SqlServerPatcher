@@ -179,6 +179,7 @@ class ExecutedPatch
     [int]      $OID
     [string]   $PatchName
     [datetime] $Applied
+    [string]   $RollbackStatus
     [bool]     $ExecutedByForce
     [bool]     $UpdatedOnChange
     [bool]     $RollBacked
@@ -202,17 +203,29 @@ class ExecutedPatch
         , [string]   $LogOutput
         )
     {
-      $this.OID               = $OID
-      $this.PatchName         = $PatchName
-      $this.Applied           = $Applied
-      $this.ExecutedByForce   = $ExecutedByForce
-      $this.UpdatedOnChange   = $UpdatedOnChange
-      $this.RollBacked        = $RollBacked
-      $this.CheckSum          = $CheckSum
-      $this.PatchScript       = $PatchScript
-      $this.RollbackScript    = $RollbackScript
-      $this.RollbackChecksum  = $RollbackChecksum
-      $this.LogOutput         = $LogOutput
+
+        $this.OID               = $OID
+        $this.PatchName         = $PatchName
+        $this.Applied           = $Applied
+        $this.ExecutedByForce   = $ExecutedByForce
+        $this.UpdatedOnChange   = $UpdatedOnChange
+        $this.RollBacked        = $RollBacked
+        $this.CheckSum          = $CheckSum
+        $this.PatchScript       = $PatchScript
+        $this.RollbackScript    = $RollbackScript
+        $this.RollbackChecksum  = $RollbackChecksum
+        $this.LogOutput         = $LogOutput
+
+        $this.RollbackStatus = 'Not Available'
+        if ($this.RollBacked)
+        {
+            $this.RollbackStatus = 'Completed'
+        }
+        elseif ($this.RollbackScript)
+        {
+            $this.RollbackStatus = 'Available'
+        }
+
     }
 }
 
@@ -801,19 +814,10 @@ function Get-SqlServerPatcherHistory
     {
         foreach ($ExecutedPatch in $ExecutedPatches)
         {
-            $RollbackStatus = 'Not Available'
-            if ($ExecutedPatch.RollBacked)
-            {
-                $RollbackStatus = 'Completed'
-            }
-            elseif ($ExecutedPatch.RollbackScript)
-            {
-                $RollbackStatus = 'Available'
-            }
             [PSCustomObject]@{ OID=$ExecutedPatch.OID
                                PatchName=$ExecutedPatch.PatchName
                                Applied=$ExecutedPatch.Applied
-                               RollBackStatus = $RollbackStatus
+                               RollBackStatus = $ExecutedPatch.RollbackStatus
                              }
         }
         #$ExecutedPatches | %{[psobject]::new(@{OID=$_.OID;PatchName=$_.PatchName})}
