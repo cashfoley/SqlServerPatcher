@@ -1,5 +1,5 @@
 ﻿Import-Module Pester
-Import-Module $PSScriptRoot -Force
+Import-Module (Join-Path $PSScriptRoot '..\SqlServerPatcher') -Force
 
 
 #cls
