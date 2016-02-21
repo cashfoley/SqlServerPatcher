@@ -14,7 +14,7 @@ Copyright (C) 2013-16 Cash Foley Software Consulting LLC
 ################################################################################################################
 ################################################################################################################
 ################################################################################################################
-class Patch
+class PatchInfo
 {
     [PatchContext]       $PatchContext
     [System.IO.FileInfo] $PatchFile
@@ -31,7 +31,7 @@ class Patch
 
     # ----------------------------------------------------------------------------------
 
-    Patch ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile,$Force,$ReExecuteOnChange)
+    PatchInfo ([PatchContext]$PatchContext,[System.IO.FileInfo]$PatchFile,$Force,$ReExecuteOnChange)
     {
         $this.PatchContext = $PatchContext
         $this.PatchFile = $PatchFile
@@ -85,7 +85,7 @@ class Patch
 
     # ----------------------------------------------------------------------------------
     
-    [void] MergePatch([Patch]$NewPatch)
+    [void] MergePatch([PatchInfo]$NewPatch)
     {
         if ($NewPatch.RollbackContent -ne '')
         {
@@ -584,8 +584,8 @@ class QueuedPatches : System.Collections.ArrayList {
     {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
-        [Patch]$Patch = [Patch]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
-        [Patch]$ExistingPatch = $this | ?{$_.PatchName -eq $Patch.PatchName}
+        [PatchInfo]$Patch = [PatchInfo]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
+        [PatchInfo]$ExistingPatch = $this | ?{$_.PatchName -eq $Patch.PatchName}
         if (!($ExistingPatch))
         {
             [void]$this.Add($Patch)
@@ -596,7 +596,7 @@ class QueuedPatches : System.Collections.ArrayList {
         }
     }
 
-    [patch] GetTopPatch()
+    [PatchInfo] GetTopPatch()
     {
         return $this[0]
     }
@@ -606,7 +606,7 @@ class QueuedPatches : System.Collections.ArrayList {
         $this.RemoveAt(0)    
     }
 
-    [Patch[]] GetExecutablePatches()
+    [PatchInfo[]] GetExecutablePatches()
     {
         $patches = $this | Where-Object{$_.ShouldExecute()}
         return [array]($patches)
