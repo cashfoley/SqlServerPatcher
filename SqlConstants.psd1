@@ -91,7 +91,7 @@ SELECT [OID]
       ,[RollbackScript]
       ,[RollbackChecksum]
       ,[LogOutput]
-  FROM [SqlSafePatch].[FilePatches]
+  FROM [SqlSafePatch].[FilePatches] FilePatches
 "@
 
 ############################################################################################################################

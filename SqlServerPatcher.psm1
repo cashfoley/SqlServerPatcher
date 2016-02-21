@@ -176,7 +176,6 @@ class Patch
 
 class ExecutedPatch
 {
-
     [int]      $OID
     [string]   $PatchName
     [datetime] $Applied
@@ -190,17 +189,17 @@ class ExecutedPatch
     [string]   $LogOutput
 
     ExecutedPatch(
-          $OID
-        , $PatchName
-        , $Applied
-        , $ExecutedByForce
-        , $UpdatedOnChange
-        , $RollBacked
-        , $CheckSum
-        , $PatchScript
-        , $RollbackScript
-        , $RollbackChecksum
-        , $LogOutput
+          [int]      $OID
+        , [string]   $PatchName
+        , [datetime] $Applied
+        , [bool]     $ExecutedByForce
+        , [bool]     $UpdatedOnChange
+        , [bool]     $RollBacked
+        , [string]   $CheckSum
+        , [string]   $PatchScript
+        , [string]   $RollbackScript
+        , [string]   $RollbackChecksum
+        , [string]   $LogOutput
         )
     {
       $this.OID               = $OID
@@ -296,8 +295,8 @@ Class PatchContext
     [int]    $DefaultCommandTimeout
     [string] $RootFolderPath
     [bool]   $Checkpoint
-    $Connection
-    $SqlCommand
+    [System.Data.SqlClient.SqlConnection] $Connection
+    [System.Data.SqlClient.SqlCommand]$SqlCommand
 
     [string] $OutFolderPath
 
@@ -436,6 +435,40 @@ Class PatchContext
     [void] NewSqlCommand()
     {
         $this.NewSqlCommand('')
+    }
+
+    # ----------------------------------------------------------------------------------
+    [array] GetExecutedPatches()
+    {
+        $this.NewSqlCommand($this.SqlConstants['SelectFilePatchesQuery'])
+
+        [System.Data.SqlClient.SqlDataReader] $reader = $this.SqlCommand.ExecuteReader()
+        $FilePatches = @()
+        while ($reader.Read()) 
+        {
+            $FilePatchHash = @{}
+            for ($idx=0; $idx -lt $reader.FieldCount; $idx++)
+            {
+                $FilePatchHash[$reader.GetName($idx)] = $reader.GetValue($idx)
+            }
+            $executedPatch = [ExecutedPatch]::new(
+                  [int]      $FilePatchHash.OID
+                , [string]   $FilePatchHash.PatchName
+                , [datetime] $FilePatchHash.Applied
+                , [bool]     ($FilePatchHash.ExecutedByForce -eq $true)
+                , [bool]     ($FilePatchHash.UpdatedOnChange -eq $true)
+                , [bool]     ($FilePatchHash.RollBacked      -eq $true)
+                , [string]   $FilePatchHash.CheckSum
+                , [string]   $FilePatchHash.PatchScript
+                , [string]   $FilePatchHash.RollbackScript
+                , [string]   $FilePatchHash.RollbackChecksum
+                , [string]   $FilePatchHash.LogOutput
+                )
+
+            $FilePatches += $executedPatch
+        }
+        $reader.Close()
+        return $FilePatches
     }
     
     # ----------------------------------------------------------------------------------
