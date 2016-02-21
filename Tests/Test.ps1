@@ -80,7 +80,7 @@ function InitDbPatches
        , [switch] $Checkpoint
      )
 
-    Initialize-SqlSafePatch -ServerName $TestSqlServer `
+    Initialize-SqlServerPatcher -ServerName $TestSqlServer `
                           -DatabaseName $TestDatabase `
                           -RootFolderPath $rootFolderPath `
                           -OutFolderPath $outFolderPath `
@@ -94,7 +94,6 @@ function InitDbPatches
 function Test-EnvironmentPatches
 {
      param([string] $Environment)
-
 
     InitDbPatches -Environment $Environment
 

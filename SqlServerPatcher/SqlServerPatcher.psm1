@@ -1,13 +1,13 @@
 ﻿#region License
 
 $LicenseMessage = @"
-SqlSafePatch - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
+SqlServerPatcher - Powershell Database Deployment for SQL Server Database Updates with coordinated Software releases. 
 Copyright (C) 2013-16 Cash Foley Software Consulting LLC
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  GNU General Public License for more details.
- https://SqlSafePatch.codeplex.com/license
+ https://SqlServerPatcher.codeplex.com/license
 "@
 #endregion
 
@@ -255,8 +255,8 @@ Class PatchContext
 
     $OutPatchCount = 0
     
-    $ThisSqlSafePatchVersion = 1
-    $SqlSafePatchVersion
+    $ThisSqlServerPatcherVersion = 1
+    $SqlServerPatcherVersion
 
     [switch] $LogSqlOutScreen = $false
     [string] $SqlLogFile = $null
@@ -355,7 +355,7 @@ Class PatchContext
             mkdir $this.OutFolderPath | Out-Null
         }
 
-        $this.SqlSafePatchVersion = $this.GetSqlSafePatchVersion()
+        $this.SqlServerPatcherVersion = $this.GetSqlServerPatcherVersion()
     }
 
     # ----------------------------------------------------------------------------------
@@ -391,27 +391,27 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [void] AssureSqlSafePatch()
+    [void] AssureSqlServerPatcher()
     {
-        if ($this.SqlSafePatchVersion -lt $this.ThisSqlSafePatchVersion)
+        if ($this.SqlServerPatcherVersion -lt $this.ThisSqlServerPatcherVersion)
         {
             $this.NewSqlCommand()
-            $this.ExecuteNonQuery($this.SqlConstants.AssureSqlSafePatchQuery)
-            $this.SqlSafePatchVersion = $this.GetSqlSafePatchVersion
+            $this.ExecuteNonQuery($this.SqlConstants.AssureSqlServerPatcherQuery)
+            $this.SqlServerPatcherVersion = $this.GetSqlServerPatcherVersion
         }
     }
 
     # ----------------------------------------------------------------------------------
-    [int] GetSqlSafePatchVersion()
+    [int] GetSqlServerPatcherVersion()
     {
-        $this.NewSqlCommand($this.SqlConstants.GetSqlSafePatchVersion)
+        $this.NewSqlCommand($this.SqlConstants.GetSqlServerPatcherVersion)
         return $this.SqlCommand.ExecuteScalar()
     }
 
     # ----------------------------------------------------------------------------------
     [string] GetChecksumForPatch($PatchName)
     {
-        if ($this.SqlSafePatchVersion -gt 0)
+        if ($this.SqlServerPatcherVersion -gt 0)
         {
             $this.NewSqlCommand($this.SqlConstants.ChecksumForPatchQuery)
             ($this.SqlCommand.Parameters.Add('@PatchName',$null)).value = $PatchName
@@ -614,7 +614,7 @@ class QueuedPatches : System.Collections.ArrayList {
         }
         try
         {
-            $this.PatchContext.AssureSqlSafePatch()
+            $this.PatchContext.AssureSqlServerPatcher()
             foreach ($Patch in $this.GetExecutablePatches())
             {
                 $this.PatchContext.NewSqlCommand()
@@ -826,7 +826,7 @@ Export-ModuleMember -Function Add-TokenReplacemen
 
 $PatchContext = $null
 
-function Initialize-SqlSafePatch
+function Initialize-SqlServerPatcher
 {
     [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
 
@@ -870,10 +870,10 @@ function Initialize-SqlSafePatch
 
     $script:QueuedPatches.SetPatchContext($script:PatchContext)
 
-    # AssureSqlSafePatch
+    # AssureSqlServerPatcher
 }
 
-Export-ModuleMember -Function Initialize-SqlSafePatch
+Export-ModuleMember -Function Initialize-SqlServerPatcher
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------

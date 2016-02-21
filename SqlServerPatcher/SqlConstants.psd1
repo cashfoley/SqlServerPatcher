@@ -2,22 +2,22 @@
 
 ############################################################################################################################
 
-    AssureSqlSafePatchQuery = @"
--- Adds SqlSafePatch Objects if they don't exist
---    SCHEMA [SqlSafePatch]
---    TABLE [SqlSafePatch].[FilePatches]
+    AssureSqlServerPatcherQuery = @"
+-- Adds SqlServerPatcher Objects if they don't exist
+--    SCHEMA [SqlServerPatcher]
+--    TABLE [SqlServerPatcher].[FilePatches]
 --    PROCEDURE #MarkPatchExecuted
 
 BEGIN TRANSACTION;
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'SqlSafePatch')
-EXEC sys.sp_executesql N'CREATE SCHEMA [SqlSafePatch] AUTHORIZATION [dbo]'
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'SqlServerPatcher')
+EXEC sys.sp_executesql N'CREATE SCHEMA [SqlServerPatcher] AUTHORIZATION [dbo]'
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlSafePatch].[FilePatches]') AND type in (N'U'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerPatcher].[FilePatches]') AND type in (N'U'))
 BEGIN
-CREATE TABLE [SqlSafePatch].[FilePatches](
+CREATE TABLE [SqlServerPatcher].[FilePatches](
     [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
     [PatchName]         [nvarchar] (450) NOT NULL,
     [Applied]           [datetime] NOT NULL,
@@ -50,7 +50,7 @@ EXEC dbo.sp_executesql @statement = N'
         SET NOCOUNT ON;
 
         INSERT 
-            INTO [SqlSafePatch].[FilePatches]
+            INTO [SqlServerPatcher].[FilePatches]
                 ( [PatchName]
                 , [Applied]
                 , [CheckSum]
@@ -91,13 +91,13 @@ SELECT [OID]
       ,[RollbackScript]
       ,[RollbackChecksum]
       ,[LogOutput]
-  FROM [SqlSafePatch].[FilePatches] FilePatches
+  FROM [SqlServerPatcher].[FilePatches] FilePatches
 "@
 
 ############################################################################################################################
 
-    GetSqlSafePatchVersion = @"
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlSafePatch].[FilePatches]') AND type in (N'U'))
+    GetSqlServerPatcherVersion = @"
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerPatcher].[FilePatches]') AND type in (N'U'))
 BEGIN
     SELECT 1
 END
@@ -109,9 +109,9 @@ END
 ############################################################################################################################
     ChecksumForPatchQuery = @"
 SELECT ChecKSum 
-  FROM [SqlSafePatch].[FilePatches]
+  FROM [SqlServerPatcher].[FilePatches]
  WHERE OID = (SELECT MAX(OID)
-                FROM [SqlSafePatch].[FilePatches]
+                FROM [SqlServerPatcher].[FilePatches]
                WHERE PatchName = @PatchName)
 "@
 
