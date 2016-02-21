@@ -78,14 +78,18 @@ function InitDbPatches
      (
          [string] $Environment = ''
        , [switch] $Checkpoint
+       , [scriptblock] $PatchFileInitializationScript = {
+             Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches
+         }
      )
 
     Initialize-SqlServerPatcher -ServerName $TestSqlServer `
-                          -DatabaseName $TestDatabase `
-                          -RootFolderPath $rootFolderPath `
-                          -OutFolderPath $outFolderPath `
-                          -Environment $Environment `
-                          -Checkpoint:$Checkpoint
+                                -DatabaseName $TestDatabase `
+                                -RootFolderPath $rootFolderPath `
+                                -OutFolderPath $outFolderPath `
+                                -Environment $Environment `
+                                -Checkpoint:$Checkpoint `
+                                -PatchFileInitializationScript:$PatchFileInitializationScript
 }
 
 
@@ -96,8 +100,6 @@ function Test-EnvironmentPatches
      param([string] $Environment)
 
     InitDbPatches -Environment $Environment
-
-    Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
     Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
         "BeforeOneTime\00_Initialize.($Environment).sql"
@@ -144,11 +146,6 @@ Test-EnvironmentPatches -Environment 'Prod'
 
 InitDbPatches -Checkpoint
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
-
-# Attempt to add Patches again.  should be ignored
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
-
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
     'BeforeOneTime\02_ScriptsRun.sql'
@@ -163,8 +160,6 @@ Publish-Patches
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created during Checkpoint'
 
 InitDbPatches 
-
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
 
 Describe 'Verify No Patches to be run after Checkpoint' {
     It 'Should contain 0 Patches' {
@@ -184,8 +179,6 @@ $Connection = .\Initialize-TestDatabase $TestSqlServer
 
 InitDbPatches 
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches #-Verbose   
-
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
     'BeforeOneTime\02_ScriptsRun.sql'
@@ -202,7 +195,6 @@ Test-ForSqlObjects -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.Script
 # ------------------------------------
 
 InitDbPatches
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches 
 
 Describe 'Verify No Patches to be run after publish' {
     It 'Should contain 0 Patches' {
@@ -213,17 +205,8 @@ Describe 'Verify No Patches to be run after publish' {
 Publish-Patches
 InitDbPatches
 
-Get-ChildItem $rootFolderPath -recurse -Filter *.sql | Add-SqlDbPatches -Force
-
-Test-ForPatches -TestPatchNames @(
-    'BeforeOneTime\01_SampleItems.sql'
-    'BeforeOneTime\02_ScriptsRun.sql'
-    'BeforeOneTime\03_ScriptsRunErrors.sql'
-    'BeforeOneTime\04_Version.sql'
-)
-
-#InitDbPatches
-
 ##############################################################################################################################
 
+
+# TODO:  Close SQL Connection after every command
 

@@ -256,12 +256,12 @@ Class PatchContext
     $OutPatchCount = 0
     
     $ThisSqlServerPatcherVersion = 1
-    $SqlServerPatcherVersion
 
     [switch] $LogSqlOutScreen = $false
     [string] $SqlLogFile = $null
     [switch] $PublishWhatif = $false
-    [string] $Environment = $EnvironmentParm
+    [string] $Environment = $null
+    [scriptblock] $PatchFileInitializationScript
 
     hidden [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
     #hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
@@ -306,11 +306,13 @@ Class PatchContext
         , [string] $RootFolderPath
         , [string] $OutFolderPathParm
         , [string] $EnvironmentParm
+        , [scriptblock] $PatchFileInitializationScript
         , [bool]   $Checkpoint
         )
     {
         $this.Environment = $EnvironmentParm
         $this.Checkpoint = $Checkpoint
+        $this.PatchFileInitializationScript = $PatchFileInitializationScript
 
         $this.TokenList = [TokenList]::new()
 
@@ -354,8 +356,6 @@ Class PatchContext
         {
             mkdir $this.OutFolderPath | Out-Null
         }
-
-        $this.SqlServerPatcherVersion = $this.GetSqlServerPatcherVersion()
     }
 
     # ----------------------------------------------------------------------------------
@@ -390,14 +390,26 @@ Class PatchContext
         return $null
     }
 
+    [void]PerformPatchFileInitializationScript()
+    {
+        Push-Location $this.RootFolderPath
+        try
+        {
+            & $this.PatchFileInitializationScript
+        }
+        finally
+        {
+            Pop-Location
+        }
+    }
+
     # ----------------------------------------------------------------------------------
     [void] AssureSqlServerPatcher()
     {
-        if ($this.SqlServerPatcherVersion -lt $this.ThisSqlServerPatcherVersion)
+        if ($this.GetSqlServerPatcherVersion() -lt $this.ThisSqlServerPatcherVersion)
         {
             $this.NewSqlCommand()
             $this.ExecuteNonQuery($this.SqlConstants.AssureSqlServerPatcherQuery)
-            $this.SqlServerPatcherVersion = $this.GetSqlServerPatcherVersion
         }
     }
 
@@ -411,7 +423,7 @@ Class PatchContext
     # ----------------------------------------------------------------------------------
     [string] GetChecksumForPatch($PatchName)
     {
-        if ($this.SqlServerPatcherVersion -gt 0)
+        if ($this.GetSqlServerPatcherVersion() -gt 0)
         {
             $this.NewSqlCommand($this.SqlConstants.ChecksumForPatchQuery)
             ($this.SqlCommand.Parameters.Add('@PatchName',$null)).value = $PatchName
@@ -658,7 +670,6 @@ class QueuedPatches : System.Collections.ArrayList {
         {
             TerminalError $_
         }
-        $this.PatchContext.Connection.Close()
     }
 }
 
@@ -752,6 +763,8 @@ function Publish-Patches
  
     param () 
     $script:QueuedPatches.PerformPatches()
+    $script:QueuedPatches.Clear()
+    $script:QueuedPatches.PatchContext.PerformPatchFileInitializationScript()
 }
 
 Export-ModuleMember -Function Publish-Patches
@@ -831,12 +844,13 @@ function Initialize-SqlServerPatcher
     [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
 
     param 
-    ( $ServerName
-    , $DatabaseName
-    , $RootFolderPath
-    , $Environment
-    , $OutFolderPath = (Join-Path -Path $RootFolderPath -ChildPath 'OutFolder')
-    , $SqlLogFile = $null
+    ( [string]$ServerName
+    , [string]$DatabaseName
+    , [string]$RootFolderPath
+    , [string]$Environment
+    , [string]$OutFolderPath = (Join-Path -Path $RootFolderPath -ChildPath 'OutFolder')
+    , [scriptblock]$PatchFileInitializationScript
+    , [string]$SqlLogFile = $null
     , [switch]$PublishWhatIf
     , [switch]$EchoSql
     , [switch]$DisplayCallStack
@@ -859,7 +873,7 @@ function Initialize-SqlServerPatcher
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$Checkpoint)
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript, $Checkpoint)
     
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
@@ -869,6 +883,8 @@ function Initialize-SqlServerPatcher
     $script:QueuedPatches = [QueuedPatches]::New()
 
     $script:QueuedPatches.SetPatchContext($script:PatchContext)
+
+    $PatchContext.PerformPatchFileInitializationScript()
 
     # AssureSqlServerPatcher
 }
