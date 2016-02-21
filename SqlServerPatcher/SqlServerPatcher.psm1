@@ -787,7 +787,7 @@ Export-ModuleMember -Function Get-ExecutablePatches
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
-function Get-PatchHistory
+function Get-SqlServerPatcherHistory
 {
     param([switch] $ShowAllFields)
 
@@ -820,7 +820,7 @@ function Get-PatchHistory
     }
 }
 
-Export-ModuleMember -Function Get-PatchHistory
+Export-ModuleMember -Function Get-SqlServerPatcherHistory
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------

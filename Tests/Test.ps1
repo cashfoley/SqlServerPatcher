@@ -118,16 +118,6 @@ Set-StrictMode -Version 2
 $TestSqlServer = '.'
 $TestDatabase = 'ScriptTest'
 
-$DeleteDatabaseScript = @"
-IF EXISTS(select * from sys.databases where name='{0}')
-BEGIN
-    ALTER DATABASE [{0}] SET  SINGLE_USER WITH ROLLBACK IMMEDIATE
-    DROP DATABASE [{0}]
-END
-"@
-
-$CreateDatabaseScript = 'CREATE DATABASE [{0}]'
-
 $outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
 $rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
 

@@ -1,8 +1,18 @@
 param
 (
-    [string] $ServerName,
-    [string] $DatabaseName
+    [string] $ServerName = '.',
+    [string] $DatabaseName = 'ScriptTest'
 )
+
+$DeleteDatabaseScript = @"
+IF EXISTS(select * from sys.databases where name='{0}')
+BEGIN
+    ALTER DATABASE [{0}] SET  SINGLE_USER WITH ROLLBACK IMMEDIATE
+    DROP DATABASE [{0}]
+END
+"@
+
+$CreateDatabaseScript = 'CREATE DATABASE [{0}]'
 
 try
 {
