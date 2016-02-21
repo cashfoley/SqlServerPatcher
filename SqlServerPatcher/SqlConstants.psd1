@@ -120,6 +120,10 @@ SELECT ChecKSum
     InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
 
 ############################################################################################################################
+    
+    MarkPatchAsRollBacked = 'UPDATE [SqlServerPatcher].[FilePatches] SET [RollBacked] = 1 WHERE [OID] =  {0}'
+    
+############################################################################################################################
 
     BeginTransctionScript = @"
 SET XACT_ABORT ON

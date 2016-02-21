@@ -225,8 +225,8 @@ class ExecutedPatch
         {
             $this.RollbackStatus = 'Available'
         }
-
     }
+
 }
 
 ###############################################################################################################
@@ -463,6 +463,14 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
+    [void] RollbackExecutedPatch([ExecutedPatch]$ExecutedPatch)
+    {
+       $this.NewSqlCommand()
+       $script = $Script:PatchContext.GetRollbackScript($ExecutedPatch)
+       $this.ExecuteNonQuery( $script )
+    }
+    
+    # ----------------------------------------------------------------------------------
     [array] GetExecutedPatches()
     {
         $this.NewSqlCommand($this.SqlConstants['SelectFilePatchesQuery'])
@@ -495,7 +503,22 @@ Class PatchContext
         $reader.Close()
         return $FilePatches
     }
-    
+
+    # ----------------------------------------------------------------------------------
+
+    [string] GetRollbackScript([ExecutedPatch]$ExecutedPatch)
+    {
+        #$escapedfileContent = $this.PatchContent.Replace("'","''")
+        #$escapedRollbackPatch = $this.RollbackContent.Replace("'","''")
+
+        $script = ($this.SqlConstants.BeginTransctionScript + "`nGO`n") + 
+                  ($ExecutedPatch.RollbackScript + "`nGO`n") + 
+                  ($this.SqlConstants.MarkPatchAsRollBacked -f $ExecutedPatch.OID + "`nGO`n") +
+                  ($this.SqlConstants.EndTransactionScript)
+        
+        return $script
+    }
+
     # ----------------------------------------------------------------------------------
     [string] GetDBServerName()
     {
@@ -840,6 +863,7 @@ function Undo-SqlServerPatch
     {
         $ExecutedPatch = $ExecutedPatches[0]
         Write-Host ('Rollback {0} - {1}' -f $ExecutedPatch.OID, $ExecutedPatch.PatchName)
+        $PatchContext.RollbackExecutedPatch($ExecutedPatch)
         $ExecutedPatches.RemoveAt(0)
     }
 }
