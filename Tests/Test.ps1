@@ -1,45 +1,10 @@
-﻿Import-Module Pester
+﻿Set-Location $PSScriptRoot
+
+Import-Module Pester
 Import-Module (Join-Path $PSScriptRoot '..\SqlServerPatcher') -Force
 
 
 #cls
-function Initialize-TestDatabase
-{
-     param
-     (
-         [string] $ServerName,
-         [string] $DatabaseName
-     )
-
-    try
-    {
-        $IntegratedConnectionString = 'Data Source={0}; Integrated Security=True;MultipleActiveResultSets=False;Application Name="SQL Management"'
-        $Connection = (New-Object 'System.Data.SqlClient.SqlConnection')
-        $Connection.ConnectionString = $IntegratedConnectionString -f $ServerName
-        $Connection.Open()
-
-        $SqlCmd = $Connection.CreateCommand()
-        $SqlCmd.CommandType = [System.Data.CommandType]::Text
-
-        $SqlCmd.CommandText = ($DeleteDatabaseScript -f $TestDatabase)
-        Write-Verbose $SqlCmd.CommandText
-        [void]($SqlCmd.ExecuteNonQuery())
-
-        $SqlCmd.CommandText = ($CreateDatabaseScript -f $TestDatabase)
-        Write-Verbose $SqlCmd.CommandText
-        [void]($SqlCmd.ExecuteNonQuery())
-
-        $Connection.ChangeDatabase($TestDatabase)
-
-        $Connection
-    }
-    Catch
-    {
-        Write-Error ('Error while Re-Creating Datbase {0}.{1} - {2}' -f $ServerName,$DatabaseName,$_)
-    }
-
-}
-
 function Test-ForPatches
 {
      param
@@ -167,7 +132,7 @@ $rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
 
 ##############################################################################################################################
 
-$Connection = Initialize-TestDatabase $TestSqlServer
+$Connection = .\Initialize-TestDatabase $TestSqlServer
 
 Test-EnvironmentPatches -Environment 'Dev' 
 Test-EnvironmentPatches -Environment 'Test'
@@ -176,7 +141,7 @@ Test-EnvironmentPatches -Environment 'Prod'
 ##############################################################################################################################
 #  Verfify Checkpoint 
 
-# $Connection = Initialize-TestDatabase $TestSqlServer
+# $Connection = .\Initialize-TestDatabase $TestSqlServer
 
 InitDbPatches -Checkpoint
 
@@ -216,7 +181,7 @@ Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.Script
 ##############################################################################################################################
 #  Test Patches get executed
 
-$Connection = Initialize-TestDatabase $TestSqlServer
+$Connection = .\Initialize-TestDatabase $TestSqlServer
 
 InitDbPatches 
 
