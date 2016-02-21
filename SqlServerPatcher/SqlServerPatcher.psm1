@@ -820,11 +820,31 @@ function Get-SqlServerPatcherHistory
                                RollBackStatus = $ExecutedPatch.RollbackStatus
                              }
         }
-        #$ExecutedPatches | %{[psobject]::new(@{OID=$_.OID;PatchName=$_.PatchName})}
     }
 }
 
 Export-ModuleMember -Function Get-SqlServerPatcherHistory
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+
+function Undo-SqlServerPatch
+{
+    param([int] $OID)
+
+    $ExecutedPatches = [System.Collections.ArrayList]::new($QueuedPatches.PatchContext.GetExecutedPatches())
+    $ExecutedPatches.Reverse()
+
+    while ($ExecutedPatches[0].OID -ge $OID)
+    {
+        $ExecutedPatch = $ExecutedPatches[0]
+        Write-Host ('Rollback {0} - {1}' -f $ExecutedPatch.OID, $ExecutedPatch.PatchName)
+        $ExecutedPatches.RemoveAt(0)
+    }
+}
+
+Export-ModuleMember -Function Undo-SqlServerPatch
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
