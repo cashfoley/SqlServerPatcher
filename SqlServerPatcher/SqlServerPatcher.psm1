@@ -584,15 +584,15 @@ class QueuedPatches : System.Collections.ArrayList {
     {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
-        [PatchInfo]$Patch = [PatchInfo]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
-        [PatchInfo]$ExistingPatch = $this | ?{$_.PatchName -eq $Patch.PatchName}
+        [PatchInfo]$PatchInfo = [PatchInfo]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
+        [PatchInfo]$ExistingPatch = $this | ?{$_.PatchName -eq $PatchInfo.PatchName}
         if (!($ExistingPatch))
         {
-            [void]$this.Add($Patch)
+            [void]$this.Add($PatchInfo)
         }
         else
         {
-            $ExistingPatch.MergePatch($Patch)
+            $ExistingPatch.MergePatch($PatchInfo)
         }
     }
 
@@ -627,26 +627,26 @@ class QueuedPatches : System.Collections.ArrayList {
         try
         {
             $this.PatchContext.AssureSqlServerPatcher()
-            foreach ($Patch in $this.GetExecutablePatches())
+            foreach ($PatchInfo in $this.GetExecutablePatches())
             {
                 $this.PatchContext.NewSqlCommand()
                 if ($this.PatchContext.CheckPoint)
                 {
-                    #if ($PSCmdlet.ShouldProcess($Patch.PatchName,'Checkpoint Patch')) 
+                    #if ($PSCmdlet.ShouldProcess($PatchInfo.PatchName,'Checkpoint Patch')) 
                     #{
-                        Write-Host "Checkpoint (mark as executed) - $($Patch.PatchName)"
-                        $this.PatchContext.InsertFilePatch($Patch.PatchName, $Patch.Checksum, '', '', '')
-                        $Patch.Executed = $True
+                        Write-Host "Checkpoint (mark as executed) - $($PatchInfo.PatchName)"
+                        $this.PatchContext.InsertFilePatch($PatchInfo.PatchName, $PatchInfo.Checksum, '', '', '')
+                        $PatchInfo.Executed = $True
                     #}
                 }
                 else
                 {
-                    Write-Host $Patch.PatchName
+                    Write-Host $PatchInfo.PatchName
                     
                     $WhatifExecute = $false
-                    $patchScript = $Patch.GetPatchScript()
+                    $patchScript = $PatchInfo.GetPatchScript()
 
-                    $this.PatchContext.OutPatchFile($Patch.PatchName, $patchScript)
+                    $this.PatchContext.OutPatchFile($PatchInfo.PatchName, $patchScript)
 
                     if (!$WhatIfExecute)
                     {
@@ -654,7 +654,7 @@ class QueuedPatches : System.Collections.ArrayList {
                         try
                         {
                             $this.PatchContext.ExecuteNonQuery( $patchScript )
-                            $Patch.Executed = $True
+                            $PatchInfo.Executed = $True
                         }
                         Catch
                         {
@@ -775,9 +775,9 @@ Export-ModuleMember -Function Publish-Patches
 
 function Get-ExecutablePatches
 {
-    foreach ($patch in $QueuedPatches.GetExecutablePatches())
+    foreach ($PatchInfo in $QueuedPatches.GetExecutablePatches())
     {
-        $patch
+        $PatchInfo
     }
 }
 
