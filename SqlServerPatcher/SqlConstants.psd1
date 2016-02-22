@@ -112,7 +112,8 @@ SELECT ChecKSum
   FROM [SqlServerPatcher].[FilePatches]
  WHERE OID = (SELECT MAX(OID)
                 FROM [SqlServerPatcher].[FilePatches]
-               WHERE PatchName = @PatchName)
+               WHERE PatchName = @PatchName
+                 AND (ISNULL([RollBacked],0) != 1))
 "@
 
 ############################################################################################################################
