@@ -1,7 +1,6 @@
 ﻿Set-Location $PSScriptRoot
 
 Import-Module Pester
-Import-Module (Join-Path $PSScriptRoot '..\SqlServerPatcher') -Force
 
 
 #cls
@@ -72,26 +71,6 @@ function Test-ForSqlObjects
     }
 }
 
-function InitDbPatches
-{
-     param
-     (
-         [string] $Environment = ''
-       , [switch] $Checkpoint
-       , [scriptblock] $PatchFileInitializationScript = {
-             Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches
-         }
-     )
-
-    Initialize-SqlServerPatcher -ServerName $TestSqlServer `
-                                -DatabaseName $TestDatabase `
-                                -RootFolderPath $rootFolderPath `
-                                -OutFolderPath $outFolderPath `
-                                -Environment $Environment `
-                                -Checkpoint:$Checkpoint `
-                                -PatchFileInitializationScript:$PatchFileInitializationScript
-}
-
 
 ##############################################################################################################################
 
@@ -99,7 +78,7 @@ function Test-EnvironmentPatches
 {
      param([string] $Environment)
 
-    InitDbPatches -Environment $Environment
+    .\Initialize-TestPatches.ps1 -Environment $Environment
 
     Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
         "BeforeOneTime\00_Initialize.($Environment).sql"
@@ -115,12 +94,6 @@ function Test-EnvironmentPatches
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
-$TestSqlServer = '.'
-$TestDatabase = 'ScriptTest'
-
-$outFolderPath = Join-Path $PSScriptRoot 'TestOutput'
-$rootFolderPath = Join-Path $PSScriptRoot 'Tests\SqlScripts'
-
 ##############################################################################################################################
 
 $Connection = .\Initialize-TestDatabase $TestSqlServer
@@ -134,7 +107,7 @@ Test-EnvironmentPatches -Environment 'Prod'
 
 # $Connection = .\Initialize-TestDatabase $TestSqlServer
 
-InitDbPatches -Checkpoint
+.\Initialize-TestPatches.ps1 -Checkpoint
 
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
@@ -149,7 +122,7 @@ Publish-Patches
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created during Checkpoint'
 
-InitDbPatches 
+.\Initialize-TestPatches.ps1 
 
 Describe 'Verify No Patches to be run after Checkpoint' {
     It 'Should contain 0 Patches' {
@@ -167,7 +140,7 @@ Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.Script
 
 $Connection = .\Initialize-TestDatabase $TestSqlServer
 
-InitDbPatches 
+.\Initialize-TestPatches.ps1 
 
 Test-ForPatches -TestPatchNames @(
     'BeforeOneTime\01_SampleItems.sql'
@@ -184,7 +157,7 @@ Test-ForSqlObjects -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.Script
 
 # ------------------------------------
 
-InitDbPatches
+.\Initialize-TestPatches.ps1
 
 Describe 'Verify No Patches to be run after publish' {
     It 'Should contain 0 Patches' {
@@ -193,7 +166,7 @@ Describe 'Verify No Patches to be run after publish' {
 }
 
 Publish-Patches
-InitDbPatches
+.\Initialize-TestPatches.ps1
 
 ##############################################################################################################################
 
