@@ -419,11 +419,11 @@ Class PatchContext
     # ----------------------------------------------------------------------------------
     [void] AssureSqlServerPatcher()
     {
-        if ($this.GetSqlServerPatcherVersion() -lt $this.ThisSqlServerPatcherVersion)
-        {
+        #if ($this.GetSqlServerPatcherVersion() -lt $this.ThisSqlServerPatcherVersion)
+        #{
             $this.NewSqlCommand()
             $this.ExecuteNonQuery($this.SqlConstants.AssureSqlServerPatcherQuery)
-        }
+        #}
     }
 
     # ----------------------------------------------------------------------------------
@@ -721,7 +721,7 @@ function TerminalError($Exception,$OptionalMsg)
         $ExceptionMessage = $Exception.Exception.InnerException.Message;
     }
     $errorQueryMsg = "`n{0}`n{1}" -f $ExceptionMessage,$OptionalMsg
-    $host.ui.WriteErrorLine($errorQueryMsg) 
+    #$host.ui.WriteErrorLine($errorQueryMsg) 
     
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Temp 
@@ -750,7 +750,7 @@ function TerminalError($Exception,$OptionalMsg)
             $host.ui.WriteErrorLine($brkline)
         }
     }
-    Exit
+    Throw $errorQueryMsg
 }
 
 Export-ModuleMember -Function TerminalError
