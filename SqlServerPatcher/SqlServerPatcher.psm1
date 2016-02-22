@@ -466,7 +466,7 @@ Class PatchContext
     [void] RollbackExecutedPatch([ExecutedPatch]$ExecutedPatch)
     {
        $this.NewSqlCommand()
-       $script = $Script:PatchContext.GetRollbackScript($ExecutedPatch)
+       $script = $this.GetRollbackScript($ExecutedPatch)
        $this.ExecuteNonQuery( $script )
     }
     
@@ -854,17 +854,64 @@ Export-ModuleMember -Function Get-SqlServerPatcherHistory
 
 function Undo-SqlServerPatch
 {
-    param([int] $OID)
+    param( [int] $OID
+         , [switch] $Force
+         )
 
     $ExecutedPatches = [System.Collections.ArrayList]::new($QueuedPatches.PatchContext.GetExecutedPatches())
     $ExecutedPatches.Reverse()
 
-    while ($ExecutedPatches[0].OID -ge $OID)
+    if ($OID -gt $ExecutedPatches[0].OID)
     {
-        $ExecutedPatch = $ExecutedPatches[0]
+        Throw "Specified Patch '$OID' is greater than last patch '$($ExecutedPatches[0].OID)'"
+    }
+
+    if ($OID -lt 1)
+    {
+        Throw "Patch '$OID' is less than 1"
+    }
+
+    $RollbackPatches = @()
+    $WarningsDetected = 0
+    foreach ($ExecutedPatch in $ExecutedPatches)
+    {
+        if ($ExecutedPatch.OID -lt $OID)
+        {
+            break;
+        }
+
+        if ($ExecutedPatch.RollbackStatus -eq 'Not Available')
+        {
+            if ($Force)
+            {
+                Write-Warning ("Patch '{0}' - '{1}' cannot be rolled back. Skipping" -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
+                $RollbackPatches += $ExecutedPatch
+            }
+            else
+            {
+                Write-Warning ("Patch '{0}' - '{1}' cannot be rolled back." -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
+                $WarningsDetected++
+            }
+        }
+        elseif ($ExecutedPatch.RollbackStatus -eq 'Completed')
+        {
+            Write-Warning ("Patch '{0}' - '{1}' has already been performed. Skipping" -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
+        }
+        else
+        {
+            $RollbackPatches += $ExecutedPatch
+        }
+    }
+
+    if ($WarningsDetected -gt 0)
+    {
+        Throw "Detected $WarningsDetected blocking warnings. Use -Force to skip them."
+    }
+
+    foreach ($ExecutedPatch in $RollbackPatches)
+    {
         Write-Host ('Rollback {0} - {1}' -f $ExecutedPatch.OID, $ExecutedPatch.PatchName)
         $PatchContext.RollbackExecutedPatch($ExecutedPatch)
-        $ExecutedPatches.RemoveAt(0)
     }
 }
 
