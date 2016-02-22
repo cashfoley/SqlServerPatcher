@@ -823,7 +823,7 @@ Export-ModuleMember -Function Get-ExecutablePatches
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
-function Get-SqlServerPatcherHistory
+function Get-SqlServerPatchHistory
 {
     param([switch] $ShowAllFields)
 
@@ -846,7 +846,38 @@ function Get-SqlServerPatcherHistory
     }
 }
 
-Export-ModuleMember -Function Get-SqlServerPatcherHistory
+New-Alias -Name PatchHistory -Value Get-SqlServerPatchHistory
+
+Export-ModuleMember -Function Get-SqlServerPatchHistory -Alias PatchHistory
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+
+function Get-SqlServerPatchInfo
+{
+    param([switch] $ShowAllFields)
+
+    if ($ShowAllFields)
+    {
+        $QueuedPatches
+    }
+    else
+    {
+        foreach ($PatchInfo in $QueuedPatches)
+        {
+            
+            [PSCustomObject]@{ PatchName=$PatchInfo.PatchName
+                               RollBackScript=$(if ($PatchInfo.RollbackContent) {'Yes'}else{'No'})
+                               ShouldExecute = $PatchInfo.ShouldExecute()
+                             }
+        }
+    }
+}
+
+New-Alias -Name PatchInfo -Value Get-SqlServerPatchInfo
+
+Export-ModuleMember -Function Get-SqlServerPatchInfo -Alias PatchInfo
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -915,7 +946,8 @@ function Undo-SqlServerPatch
     }
 }
 
-Export-ModuleMember -Function Undo-SqlServerPatch
+New-Alias -Name RollbackPatch -Value Undo-SqlServerPatch
+Export-ModuleMember -Function Undo-SqlServerPatch -Alias RollbackPatch
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
