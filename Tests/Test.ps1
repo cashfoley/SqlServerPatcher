@@ -2,6 +2,8 @@
 
 Import-Module Pester
 
+$TestSqlServer = '.'
+$TestDatabase = 'ScriptTest'
 
 #cls
 function Test-ForPatches
