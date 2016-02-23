@@ -72,12 +72,9 @@ class PatchInfo
 
     [string] GetPatchScript()
     {
-        $escapedfileContent = $this.PatchContent.Replace("'","''")
-        $escapedRollbackPatch = $this.RollbackContent.Replace("'","''")
-
         $PatchScript = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
                        ($this.GoScript($this.PatchContent)) + 
-                       ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, $escapedfileContent, $escapedRollbackPatch,''))) +
+                       ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, $this.PatchContent, $this.RollbackContent,''))) +
                        ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
         
         return $PatchScript
@@ -508,9 +505,6 @@ Class PatchContext
 
     [string] GetRollbackScript([ExecutedPatch]$ExecutedPatch)
     {
-        #$escapedfileContent = $this.PatchContent.Replace("'","''")
-        #$escapedRollbackPatch = $this.RollbackContent.Replace("'","''")
-
         $script = ($this.SqlConstants.BeginTransctionScript + "`nGO`n") + 
                   ($ExecutedPatch.RollbackScript + "`nGO`n") + 
                   ($this.SqlConstants.MarkPatchAsRollBacked -f $ExecutedPatch.OID + "`nGO`n") +
