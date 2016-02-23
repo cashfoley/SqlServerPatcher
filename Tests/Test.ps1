@@ -83,11 +83,11 @@ function Test-EnvironmentPatches
     .\Initialize-TestPatches.ps1 -Environment $Environment
 
     Test-ForPatches -Description "Test Environment Patches for '$Environment'"  -TestPatchNames @(
-        "BeforeOneTime\00_Initialize.($Environment).sql"
-        'BeforeOneTime\01_SampleItems.sql'
-        'BeforeOneTime\02_ScriptsRun.sql'
-        'BeforeOneTime\03_ScriptsRunErrors.sql'
-        'BeforeOneTime\04_Version.sql'
+        "20_OneTime\00_Initialize.($Environment).sql"
+        '20_OneTime\01_SampleItems.sql'
+        '20_OneTime\02_ScriptsRun.sql'
+        '20_OneTime\03_ScriptsRunErrors.sql'
+        '20_OneTime\04_Version.sql'
     )
 }
 
@@ -112,10 +112,10 @@ Test-EnvironmentPatches -Environment 'Prod'
 .\Initialize-TestPatches.ps1 -Checkpoint
 
 Test-ForPatches -TestPatchNames @(
-    'BeforeOneTime\01_SampleItems.sql'
-    'BeforeOneTime\02_ScriptsRun.sql'
-    'BeforeOneTime\03_ScriptsRunErrors.sql'
-    'BeforeOneTime\04_Version.sql'
+    '20_OneTime\01_SampleItems.sql'
+    '20_OneTime\02_ScriptsRun.sql'
+    '20_OneTime\03_ScriptsRunErrors.sql'
+    '20_OneTime\04_Version.sql'
 )
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created'
@@ -145,10 +145,10 @@ $Connection = .\Initialize-TestDatabase $TestSqlServer
 .\Initialize-TestPatches.ps1 
 
 Test-ForPatches -TestPatchNames @(
-    'BeforeOneTime\01_SampleItems.sql'
-    'BeforeOneTime\02_ScriptsRun.sql'
-    'BeforeOneTime\03_ScriptsRunErrors.sql'
-    'BeforeOneTime\04_Version.sql'
+    '20_OneTime\01_SampleItems.sql'
+    '20_OneTime\02_ScriptsRun.sql'
+    '20_OneTime\03_ScriptsRunErrors.sql'
+    '20_OneTime\04_Version.sql'
 )
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created'
