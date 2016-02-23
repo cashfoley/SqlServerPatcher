@@ -112,4 +112,8 @@
     <Build Include="dbo\Stored Procedures\Get Customer And Orders.sql" />
     <Build Include="dbo\Stored Procedures\CustOrderTotal.sql" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="SchemaToLocal.scmp" />
+    <None Include="SchemaToDev.scmp" />
+  </ItemGroup>
 </Project>

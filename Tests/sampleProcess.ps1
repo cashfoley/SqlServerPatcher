@@ -9,3 +9,5 @@ Publish-Patches
 PatchHistory
 
 RollbackPatch 5
+
+dir .\Tests\SqlScripts -Recurse
