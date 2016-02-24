@@ -80,18 +80,22 @@ COMMIT TRANSACTION;
 ############################################################################################################################
 
     SelectFilePatchesQuery = @"
-SELECT [OID]
-      ,[PatchName]
-      ,[Applied]
-      ,[ExecutedByForce]
-      ,[UpdatedOnChange]
-      ,[RollBacked]
-      ,[CheckSum]
-      ,[PatchScript]
-      ,[RollbackScript]
-      ,[RollbackChecksum]
-      ,[LogOutput]
-  FROM [SqlServerPatcher].[FilePatches] FilePatches
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerPatcher].[FilePatches]') AND type in (N'U'))
+BEGIN
+    SELECT [OID]
+          ,[PatchName]
+          ,[Applied]
+          ,[ExecutedByForce]
+          ,[UpdatedOnChange]
+          ,[RollBacked]
+          ,[CheckSum]
+          ,[PatchScript]
+          ,[RollbackScript]
+          ,[RollbackChecksum]
+          ,[LogOutput]
+      FROM [SqlServerPatcher].[FilePatches] FilePatches
+     ORDER BY [OID]
+END
 "@
 
 ############################################################################################################################
@@ -122,8 +126,29 @@ SELECT ChecKSum
 
 ############################################################################################################################
     
-    MarkPatchAsRollBacked = 'UPDATE [SqlServerPatcher].[FilePatches] SET [RollBacked] = 1 WHERE [OID] =  {0}'
-    
+    InsertRollback = @"
+-- Reverse Scripts for Rollback
+INSERT 
+  INTO [SqlServerPatcher].[FilePatches]
+     ( [PatchName]
+     , [Applied]
+     , [RollBacked]
+     , [CheckSum]
+     , [PatchScript]
+     , [RollbackChecksum]
+     , [RollbackScript]
+	 )
+SELECT [PatchName]
+     , GetDate()
+     , ~ISNULL(RollBacked,0)
+     , [RollbackChecksum]
+     , [RollbackScript]
+     , [CheckSum]
+     , [PatchScript]
+  FROM [SqlServerPatcher].[FilePatches]
+ WHERE OID = {0}
+"@
+
 ############################################################################################################################
 
     BeginTransctionScript = @"

@@ -214,11 +214,7 @@ class ExecutedPatch
         $this.LogOutput         = $LogOutput
 
         $this.RollbackStatus = 'Not Available'
-        if ($this.RollBacked)
-        {
-            $this.RollbackStatus = 'Completed'
-        }
-        elseif ($this.RollbackScript)
+        if ($this.RollbackScript)
         {
             $this.RollbackStatus = 'Available'
         }
@@ -507,7 +503,7 @@ Class PatchContext
     {
         $script = ($this.SqlConstants.BeginTransctionScript + "`nGO`n") + 
                   ($ExecutedPatch.RollbackScript + "`nGO`n") + 
-                  ($this.SqlConstants.MarkPatchAsRollBacked -f $ExecutedPatch.OID + "`nGO`n") +
+                  ($this.SqlConstants.InsertRollback -f $ExecutedPatch.OID + "`nGO`n") +
                   ($this.SqlConstants.EndTransactionScript)
         
         return $script
@@ -787,7 +783,7 @@ Export-ModuleMember -Function Add-SqlDbPatches
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
-function Publish-Patches
+function Publish-SqlServerPatches
 {
     [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
  
@@ -797,7 +793,10 @@ function Publish-Patches
     $script:QueuedPatches.PatchContext.PerformPatchFileInitializationScript()
 }
 
-Export-ModuleMember -Function Publish-Patches
+New-Alias -Name Publish-Patches -Value Publish-SqlServerPatches
+New-Alias -Name PublishPatches -Value Publish-SqlServerPatches
+
+Export-ModuleMember -Function Publish-SqlServerPatches -Alias Publish-Patches,PublishPatches
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -881,8 +880,30 @@ function Undo-SqlServerPatch
 {
     param( [int] $OID
          , [switch] $Force
+         , [switch] $OnlyOne
          )
 
+    function ValidateHasRollback($ExecutedPatch,[REF]$RollbackPatches,[REF]$WarningsDetected)
+    {
+        if ($ExecutedPatch.RollbackStatus -eq 'Not Available')
+        {
+            if ($Force)
+            {
+                Write-Warning ("Patch '{0}' - '{1}' cannot be rolled back. Skipping" -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
+                $RollbackPatches.value += $ExecutedPatch
+            }
+            else
+            {
+                Write-Warning ("Patch '{0}' - '{1}' cannot be rolled back." -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
+                $WarningsDetected.value++
+            }
+        }
+        else
+        {
+            $RollbackPatches.value += $ExecutedPatch
+        }
+    }
+    
     $ExecutedPatches = [System.Collections.ArrayList]::new($QueuedPatches.PatchContext.GetExecutedPatches())
     $ExecutedPatches.Reverse()
 
@@ -898,33 +919,31 @@ function Undo-SqlServerPatch
 
     $RollbackPatches = @()
     $WarningsDetected = 0
-    foreach ($ExecutedPatch in $ExecutedPatches)
+    if ($OnlyOne)
     {
-        if ($ExecutedPatch.OID -lt $OID)
-        {
-            break;
-        }
+        $ExecutedPatch = $ExecutedPatches | ?{$OID -eq $_.OID}
+        
+        ValidateHasRollback $ExecutedPatch ([REF]$RollbackPatches) ([REF]$WarningsDetected)
 
-        if ($ExecutedPatch.RollbackStatus -eq 'Not Available')
+        if ($OID -ne $ExecutedPatches[0].OID)
         {
-            if ($Force)
+            Write-Warning ("Patch '{0}' - '{1}' is not the last patch executed" -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
+            
+            if (!$Force)
             {
-                Write-Warning ("Patch '{0}' - '{1}' cannot be rolled back. Skipping" -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
-                $RollbackPatches += $ExecutedPatch
-            }
-            else
-            {
-                Write-Warning ("Patch '{0}' - '{1}' cannot be rolled back." -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
                 $WarningsDetected++
             }
         }
-        elseif ($ExecutedPatch.RollbackStatus -eq 'Completed')
+    }
+    else
+    {
+        foreach ($ExecutedPatch in $ExecutedPatches)
         {
-            Write-Warning ("Patch '{0}' - '{1}' has already been performed. Skipping" -f $ExecutedPatch.OID,$ExecutedPatch.PatchName)
-        }
-        else
-        {
-            $RollbackPatches += $ExecutedPatch
+            if ($ExecutedPatch.OID -lt $OID)
+            {
+                break;
+            }
+            ValidateHasRollback $ExecutedPatch ([REF]$RollbackPatches) ([REF]$WarningsDetected)
         }
     }
 
