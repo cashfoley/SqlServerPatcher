@@ -11,6 +11,7 @@ Copyright (C) 2013-16 Cash Foley Software Consulting LLC
 "@
 #endregion
 
+
 ################################################################################################################
 ################################################################################################################
 ################################################################################################################
@@ -269,6 +270,12 @@ Class PatchContext
     [string] $Environment = $null
     [scriptblock] $PatchFileInitializationScript
 
+    # Cannot declare a [DacPacUtil] type because it cannot be instanciated until
+    # the Microsoft.SqlServer.Dac.dll
+    # this initialization will load the dll before executing the Import-Module
+    # with the DacPacUtil class.
+    $DacPacUtil
+
     hidden [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
     #hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
     hidden [string] $QueriesExpression = @"
@@ -313,6 +320,7 @@ Class PatchContext
         , [string] $OutFolderPathParm
         , [string] $EnvironmentParm
         , [scriptblock] $PatchFileInitializationScript
+        , [string] $dacpacDllPath
         , [bool]   $Checkpoint
         )
     {
@@ -362,6 +370,15 @@ Class PatchContext
         {
             mkdir $this.OutFolderPath | Out-Null
         }
+
+
+        $SqlDacDll = Join-Path $dacpacDllPath 'Microsoft.SqlServer.Dac.dll'
+        add-type -path $SqlDacDll
+
+        Import-Module (Join-Path $PSScriptRoot 'DacpacUtil.psm1') -Force
+
+        $this.DacPacUtil = DacPacUtilFactory $this
+
     }
 
     # ----------------------------------------------------------------------------------
@@ -991,6 +1008,7 @@ function Initialize-SqlServerPatcher
     , [string]$OutFolderPath = (Join-Path -Path $RootFolderPath -ChildPath 'OutFolder')
     , [scriptblock]$PatchFileInitializationScript
     , [string]$SqlLogFile = $null
+    , [string]$DacpacDllPath = 'C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions\Microsoft\SQLDB\DAC\120'
     , [switch]$PublishWhatIf
     , [switch]$EchoSql
     , [switch]$DisplayCallStack
@@ -1013,7 +1031,7 @@ function Initialize-SqlServerPatcher
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript, $Checkpoint)
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$DacpacDllPath,$Checkpoint)
     
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
