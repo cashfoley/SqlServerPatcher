@@ -252,6 +252,58 @@ class TokenList
 ################################################################################################################
 ################################################################################################################
 ################################################################################################################
+class DacPacUtil
+{
+    [PatchContext]$PatchContext
+    [Microsoft.SqlServer.Dac.DacServices]$DacSvcs
+    [Microsoft.SqlServer.Dac.DacDeployOptions]$DacProfile
+
+    DacPacUtil($patchContext)
+    {
+        $this.PatchContext = $patchContext
+
+        $this.DacSvcs = new-object Microsoft.SqlServer.Dac.DacServices $this.PatchContext.Connection.ConnectionString
+        
+        $this.DacProfile =[Microsoft.SqlServer.Dac.DacDeployOptions]::new()
+        $this.DacProfile.BlockOnPossibleDataLoss = $false
+        $this.DacProfile.DropObjectsNotInSource = $true
+    }
+
+    [void] ExtractDacPac($TargetDacPacFile)
+    {
+        $this.DacSvcs.Extract($TargetDacPacFile, $this.PatchContext.Connection.Database, $this.PatchContext.Connection.Database, '0.0.0.0', 'Extracted DacPac', $null, $null, $null) 
+    }
+
+    [string] GenerateXmlDeployReport($TargetDacPacFile)
+    {
+        $DacPac = [Microsoft.SqlServer.Dac.DacPackage]::Load($TargetDacPacFile) 
+
+        return $this.DacSvcs.GenerateDeployReport($DacPac, $this.PatchContext.Connection.Database, $this.DacProfile, $null) 
+    }
+
+    [psobject[]] GetDeploymentActions($TargetDacPacFile)
+    {
+        $results = @()
+        [xml]$DeploymentDoc = ([xml]$this.GenerateXmlDeployReport($TargetDacPacFile))
+        foreach ($operation in $DeploymentDoc.DeploymentReport.Operations.Operation) 
+        {
+            $ActionName = $operation.Name
+            foreach ($operationItem in $operation.ChildNodes)
+            {
+                $ActionObject = $operationItem.Value
+                $ActionObjectType = $operationItem.Type
+                $Action = [PSCustomObject]@{Action=$ActionName; ObjectType=$ActionObjectType; ObjectName=$ActionObject}
+                $results += $Action
+            }
+        }
+        return $results
+    }
+
+}
+
+################################################################################################################
+################################################################################################################
+################################################################################################################
 
 Class PatchContext
 {
@@ -371,14 +423,7 @@ Class PatchContext
             mkdir $this.OutFolderPath | Out-Null
         }
 
-
-        $SqlDacDll = Join-Path $dacpacDllPath 'Microsoft.SqlServer.Dac.dll'
-        add-type -path $SqlDacDll
-
-        Import-Module (Join-Path $PSScriptRoot 'DacpacUtil.psm1') -Force
-
-        $this.DacPacUtil = DacPacUtilFactory $this
-
+        $this.DacPacUtil = [DacPacUtil]::new($this)
     }
 
     # ----------------------------------------------------------------------------------

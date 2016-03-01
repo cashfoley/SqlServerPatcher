@@ -24,15 +24,15 @@ try
     $SqlCmd = $Connection.CreateCommand()
     $SqlCmd.CommandType = [System.Data.CommandType]::Text
 
-    $SqlCmd.CommandText = ($DeleteDatabaseScript -f $TestDatabase)
+    $SqlCmd.CommandText = ($DeleteDatabaseScript -f $DatabaseName)
     Write-Verbose $SqlCmd.CommandText
     [void]($SqlCmd.ExecuteNonQuery())
 
-    $SqlCmd.CommandText = ($CreateDatabaseScript -f $TestDatabase)
+    $SqlCmd.CommandText = ($CreateDatabaseScript -f $DatabaseName)
     Write-Verbose $SqlCmd.CommandText
     [void]($SqlCmd.ExecuteNonQuery())
 
-    $Connection.ChangeDatabase($TestDatabase)
+    $Connection.ChangeDatabase($DatabaseName)
 
     $Connection
 }
