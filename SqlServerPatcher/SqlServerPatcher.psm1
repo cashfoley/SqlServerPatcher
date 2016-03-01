@@ -298,8 +298,39 @@ class DacPacUtil
         }
         return $results
     }
-
 }
+
+function Set-Dacpac
+{
+    param
+    (
+        [string] $DacpacFilename
+    )
+
+    $PatchContext.DacPacUtil.ExtractDacPac($DacpacFilename)
+}
+
+Export-ModuleMember -Function Set-Dacpac
+
+function Get-DacpacActions
+{
+    param
+    (
+        [string] $DacpacFilename
+      , [switch] $GetXmlReport
+    )
+
+    if ($GetXmlReport)
+    {
+        return $PatchContext.DacPacUtil.GenerateXmlDeployReport($DacpacFilename)
+    }
+    else
+    {
+        return $PatchContext.DacPacUtil.GetDeploymentActions($DacpacFilename)
+    } 
+}
+
+Export-ModuleMember -Function Get-DacpacActions
 
 ################################################################################################################
 ################################################################################################################
