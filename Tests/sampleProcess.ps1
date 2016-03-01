@@ -1,7 +1,7 @@
 ﻿Set-Location $PSScriptRoot
 
 $testFolder = $PSScriptRoot
-break
+#break
 
 .\Initialize-TestDatabase.ps1
 
@@ -12,6 +12,8 @@ PatchInfo
 Publish-Patches
 
 PatchHistory
+
+break
 
 $workDir = Join-Path $testFolder 'DacpacTemp'
 

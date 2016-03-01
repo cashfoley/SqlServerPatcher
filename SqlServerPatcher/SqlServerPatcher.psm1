@@ -929,9 +929,36 @@ Export-ModuleMember -Function Get-ExecutablePatches
 
 function Get-SqlServerPatchHistory
 {
-    param([switch] $ShowAllFields)
+    param([switch] $ShowAllFields,[switch]$ShowRollbacks)
 
-    $ExecutedPatches = $QueuedPatches.PatchContext.GetExecutedPatches()
+    function IndexOfOid($oid)
+    {
+        $ExecutedPatches.Where({$_.Oid -eq $oid})
+    }
+
+    $ExecutedPatches = [system.collections.ArrayList]::New( $QueuedPatches.PatchContext.GetExecutedPatches() )
+    
+    if (!$ShowRollbacks)
+    {
+        $RollbackPatches = @()
+        foreach ($ExecutedPatch in $ExecutedPatches)
+        {
+            if ($ExecutedPatch.RollbackOID -gt 0 -and $ExecutedPatch.IsRollback)
+            {
+                $RollbackPatches += $ExecutedPatch
+            }
+        }
+        foreach ($RollbackPatch in $RollbackPatches)
+        {
+            $ReferencedPatch = $ExecutedPatches.Where({$_.OID -eq $RollbackPatch.RollbackOID})
+            if ($ReferencedPatch -eq $null)
+            {
+                throw ('Referenced Patch OID {0} not found.  It is Referenced by OID {1}' -f $RollbackPatch.RollbackOID,$RollbackPatch.OID)
+            }
+            $ExecutedPatches.Remove((IndexOfOid $RollbackPatch.OID))
+            $ExecutedPatches.Remove((IndexOfOid $ReferencedPatch.OID))
+       }
+    }
 
     if ($ShowAllFields)
     {
@@ -1018,7 +1045,7 @@ function Undo-SqlServerPatch
         }
     }
     
-    $ExecutedPatches = [System.Collections.ArrayList]::new($QueuedPatches.PatchContext.GetExecutedPatches())
+    $ExecutedPatches = [System.Collections.ArrayList]::new((Get-SqlServerPatchHistory -ShowAllFields))
     $ExecutedPatches.Reverse()
 
     if ($OID -gt $ExecutedPatches[0].OID)
