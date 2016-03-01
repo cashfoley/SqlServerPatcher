@@ -21,9 +21,10 @@ CREATE TABLE [SqlServerPatcher].[FilePatches](
     [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
     [PatchName]         [nvarchar] (450) NOT NULL,
     [Applied]           [datetime] NOT NULL,
-	[ExecutedByForce]   [bit] NULL,
-	[UpdatedOnChange]   [bit] NULL,
-	[RollBacked]        [bit] NULL,
+	[ExecutedByForce]   [bit]      NOT NULL,
+	[UpdatedOnChange]   [bit]      NOT NULL,
+	[IsRollback]        [bit]      NOT NULL,
+    [RollbackOID]       [bigint] NULL,
     [CheckSum]          [nvarchar] (512) NOT NULL,
     [PatchScript]       [nvarchar] (MAX),
     [RollbackScript]    [nvarchar] (max),
@@ -32,6 +33,14 @@ CREATE TABLE [SqlServerPatcher].[FilePatches](
 ) ON [PRIMARY]
     
 END
+GO
+ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_ExecutedByForce]  DEFAULT ((0)) FOR [ExecutedByForce]
+GO
+
+ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_UpdatedOnChange]  DEFAULT ((0)) FOR [UpdatedOnChange]
+GO
+
+ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_IsRollback]  DEFAULT ((0)) FOR [IsRollback]
 GO
 
 IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'#InsertFilePatch') AND type in (N'P', N'PC'))
@@ -83,16 +92,17 @@ COMMIT TRANSACTION;
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerPatcher].[FilePatches]') AND type in (N'U'))
 BEGIN
     SELECT [OID]
-          ,[PatchName]
-          ,[Applied]
-          ,[ExecutedByForce]
-          ,[UpdatedOnChange]
-          ,[RollBacked]
-          ,[CheckSum]
-          ,[PatchScript]
-          ,[RollbackScript]
-          ,[RollbackChecksum]
-          ,[LogOutput]
+         , [PatchName]
+         , [Applied]
+         , [ExecutedByForce]
+         , [UpdatedOnChange]
+         , [IsRollback]
+         , [RollbackOID]
+         , [CheckSum]
+         , [PatchScript]
+         , [RollbackScript]
+         , [RollbackChecksum]
+         , [LogOutput]
       FROM [SqlServerPatcher].[FilePatches] FilePatches
      ORDER BY [OID]
 END
@@ -117,8 +127,11 @@ SELECT ChecKSum
  WHERE OID = (SELECT MAX(OID)
                 FROM [SqlServerPatcher].[FilePatches]
                WHERE PatchName = @PatchName
-                 AND (ISNULL([RollBacked],0) != 1))
+             )
 "@
+
+##                 AND (ISNULL([IsRollback],0) != 1))
+##                 AND (RollbackOID IS NULL)
 
 ############################################################################################################################
 
@@ -132,7 +145,8 @@ INSERT
   INTO [SqlServerPatcher].[FilePatches]
      ( [PatchName]
      , [Applied]
-     , [RollBacked]
+     , [IsRollback]
+     , [RollbackOID]
      , [CheckSum]
      , [PatchScript]
      , [RollbackChecksum]
@@ -140,7 +154,8 @@ INSERT
 	 )
 SELECT [PatchName]
      , GetDate()
-     , ~ISNULL(RollBacked,0)
+     , ~(IsRollback)
+     , {0}
      , [RollbackChecksum]
      , [RollbackScript]
      , [CheckSum]

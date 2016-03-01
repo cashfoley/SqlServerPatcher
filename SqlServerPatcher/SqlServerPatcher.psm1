@@ -180,7 +180,8 @@ class ExecutedPatch
     [string]   $RollbackStatus
     [bool]     $ExecutedByForce
     [bool]     $UpdatedOnChange
-    [bool]     $RollBacked
+    [bool]     $IsRollback
+    [int]      $RollbackOID
     [string]   $CheckSum
     [string]   $PatchScript
     [string]   $RollbackScript
@@ -193,7 +194,8 @@ class ExecutedPatch
         , [datetime] $Applied
         , [bool]     $ExecutedByForce
         , [bool]     $UpdatedOnChange
-        , [bool]     $RollBacked
+        , [bool]     $IsRollback
+        , [int]      $RollbackOID
         , [string]   $CheckSum
         , [string]   $PatchScript
         , [string]   $RollbackScript
@@ -207,7 +209,8 @@ class ExecutedPatch
         $this.Applied           = $Applied
         $this.ExecutedByForce   = $ExecutedByForce
         $this.UpdatedOnChange   = $UpdatedOnChange
-        $this.RollBacked        = $RollBacked
+        $this.IsRollback        = $IsRollback
+        $this.RollbackOID       = $RollbackOID
         $this.CheckSum          = $CheckSum
         $this.PatchScript       = $PatchScript
         $this.RollbackScript    = $RollbackScript
@@ -563,30 +566,45 @@ Class PatchContext
 
         [System.Data.SqlClient.SqlDataReader] $reader = $this.SqlCommand.ExecuteReader()
         $FilePatches = @()
-        while ($reader.Read()) 
+        try
         {
-            $FilePatchHash = @{}
-            for ($idx=0; $idx -lt $reader.FieldCount; $idx++)
+            while ($reader.Read()) 
             {
-                $FilePatchHash[$reader.GetName($idx)] = $reader.GetValue($idx)
-            }
-            $executedPatch = [ExecutedPatch]::new(
-                  [int]      $FilePatchHash.OID
-                , [string]   $FilePatchHash.PatchName
-                , [datetime] $FilePatchHash.Applied
-                , [bool]     ($FilePatchHash.ExecutedByForce -eq $true)
-                , [bool]     ($FilePatchHash.UpdatedOnChange -eq $true)
-                , [bool]     ($FilePatchHash.RollBacked      -eq $true)
-                , [string]   $FilePatchHash.CheckSum
-                , [string]   $FilePatchHash.PatchScript
-                , [string]   $FilePatchHash.RollbackScript
-                , [string]   $FilePatchHash.RollbackChecksum
-                , [string]   $FilePatchHash.LogOutput
-                )
+                $FilePatchHash = @{}
+                for ($idx=0; $idx -lt $reader.FieldCount; $idx++)
+                {
+                    $FilePatchHash[$reader.GetName($idx)] = $reader.GetValue($idx)
+                }
+                if ($FilePatchHash.RollbackOID -is [System.DBNull])
+                {
+                    $RollbackOID = 0
+                }
+                else
+                {
+                    $RollbackOID = [int]$FilePatchHash.RollbackOID
+                }
+                $executedPatch = [ExecutedPatch]::new(
+                      [int]      $FilePatchHash.OID
+                    , [string]   $FilePatchHash.PatchName
+                    , [datetime] $FilePatchHash.Applied
+                    , [bool]     ($FilePatchHash.ExecutedByForce -eq $true)
+                    , [bool]     ($FilePatchHash.UpdatedOnChange -eq $true)
+                    , [bool]     ($FilePatchHash.IsRollback      -eq $true)
+                    , [int]      $RollbackOID
+                    , [string]   $FilePatchHash.CheckSum
+                    , [string]   $FilePatchHash.PatchScript
+                    , [string]   $FilePatchHash.RollbackScript
+                    , [string]   $FilePatchHash.RollbackChecksum
+                    , [string]   $FilePatchHash.LogOutput
+                    )
 
-            $FilePatches += $executedPatch
+                $FilePatches += $executedPatch
+            }
         }
-        $reader.Close()
+        finally
+        {
+            $reader.Close()
+        }
         return $FilePatches
     }
 
@@ -925,8 +943,11 @@ function Get-SqlServerPatchHistory
         {
             [PSCustomObject]@{ OID=$ExecutedPatch.OID
                                PatchName=$ExecutedPatch.PatchName
-                               Applied=$ExecutedPatch.Applied
+                               #Applied=$ExecutedPatch.Applied
                                RollBackStatus = $ExecutedPatch.RollbackStatus
+                               RollbackOID = $ExecutedPatch.RollbackOID
+                               #CheckSum = $ExecutedPatch.CheckSum
+                               #RollbackChecksum = $ExecutedPatch.RollbackChecksum
                              }
         }
     }
