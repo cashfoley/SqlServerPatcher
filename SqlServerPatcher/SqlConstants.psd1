@@ -166,6 +166,25 @@ SELECT [PatchName]
 
 ############################################################################################################################
 
+    GetLastRollback = @"
+    SELECT [OID]
+         , [PatchName]
+         , [Applied]
+         , [ExecutedByForce]
+         , [UpdatedOnChange]
+         , [IsRollback]
+         , [RollbackOID]
+         , [CheckSum]
+         , [PatchScript]
+         , [RollbackScript]
+         , [RollbackChecksum]
+         , [LogOutput]
+      FROM [SqlServerPatcher].[FilePatches] FilePatches
+     WHERE [OID] = SCOPE_IDENTITY()
+"@
+
+############################################################################################################################
+
     BeginTransctionScript = @"
 SET XACT_ABORT ON
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED
