@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+  <ViewDefinitions>
+    <View>
+      <Name>DefaultView</Name>
+      <ViewSelectedBy>
+        <TypeName>ExecutedPatch</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <Width>5</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Width>50</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Width>14</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Width>11</Width>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>OID</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>PatchName</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>RollBackStatus</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>RollbackOID</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+  </ViewDefinitions>
+</Configuration>
