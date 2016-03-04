@@ -7,13 +7,13 @@ $testFolder = $PSScriptRoot
 
 .\Initialize-TestPatches.ps1
 
-PatchInfo
+Get-SqlServerPatchInfo
 
-Publish-Patches
+Publish-SqlServerPatches
 
-PatchHistory
+Get-SqlServerPatchHistory
 
-break
+#break
 
 $workDir = Join-Path $testFolder 'DacpacTemp'
 
@@ -24,7 +24,7 @@ if (Test-Path $workDir)
 
 New-Item $workDir -ItemType Directory
 
-$PatchHistory = [system.collections.ArrayList]::new( (PatchHistory) )
+$PatchHistory = [system.collections.ArrayList]::new( (Get-SqlServerPatchHistory) )
 $PatchHistory.Reverse()
 
 foreach ($HistoryItem in $PatchHistory)
@@ -33,10 +33,28 @@ foreach ($HistoryItem in $PatchHistory)
     $DacpacFileName = Join-Path $workDir $DacpacName
     Write-Host "Creating Dacpac '$DacpacFileName'"
     Set-Dacpac $DacpacFileName
-    RollbackPatch $HistoryItem.OID -OnlyOne -Force
+    $ExecutedRollback = Undo-SqlServerPatch $HistoryItem.OID -OnlyOne -Force
+    Add-Member -InputObject $HistoryItem -NotePropertyName ExecutedRollback -NotePropertyValue $ExecutedRollback
 }
 
+$PatchHistory.Reverse()
+foreach ($HistoryItem in $PatchHistory)
+{
+    $ExecutedRollback = Undo-SqlServerPatch $HistoryItem.ExecutedRollback.OID -OnlyOne -Force
+
+    $DacpacName = "{0}.{1}.dacpac" -f $QueuedPatches.PatchContext.DatabaseName,$HistoryItem.OID
+    $DacpacFileName = Join-Path $workDir $DacpacName
+    Write-Host "Comparing Dacpac results after Rollback '$DacpacFileName'"
+    $RollbackIssues = Get-DacpacActions $DacpacFileName
+    if ($RollbackIssues)
+    {
+        Throw 'Houston, we have a problem here.'
+    }
+}
+
+
 break
+<#
 
 RollbackPatch 4 -OnlyOne -Force
 
@@ -47,3 +65,4 @@ RollbackPatch 2 -OnlyOne -Force
 
 Get-DacpacActions 'C:\Git\SqlServerPatcher\Tests\A.dacpac'
 
+#>

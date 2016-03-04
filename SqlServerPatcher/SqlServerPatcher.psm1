@@ -953,8 +953,9 @@ function Get-SqlServerPatchHistory
         $ExecutedPatches.Where({$_.Oid -eq $oid})
     }
 
-    $ExecutedPatches = [system.collections.ArrayList]::New( $QueuedPatches.PatchContext.GetExecutedPatches() )
-    
+    $ExecutedPatches = [System.Collections.ArrayList]::new()
+    [void] ($QueuedPatches.PatchContext.GetExecutedPatches() | %{$ExecutedPatches.Add($_)})
+
     if (!$ShowRollbacks)
     {
         $RollbackPatches = @()
@@ -1062,7 +1063,9 @@ function Undo-SqlServerPatch
         }
     }
     
-    $ExecutedPatches = [System.Collections.ArrayList]::new((Get-SqlServerPatchHistory -ShowAllFields))
+    $ExecutedPatches = [System.Collections.ArrayList]::new()
+    [void] (Get-SqlServerPatchHistory -ShowAllFields -ShowRollbacks | %{$ExecutedPatches.Add($_)})
+
     $ExecutedPatches.Reverse()
 
     if ($OID -gt $ExecutedPatches[0].OID)

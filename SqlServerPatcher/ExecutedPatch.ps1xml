@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- https://msdn.microsoft.com/en-us/library/gg580992(v=vs.85).aspx -->
 <Configuration>
   <ViewDefinitions>
     <View>
