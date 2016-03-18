@@ -9,11 +9,10 @@ param
                 }
 )
 
-$SqlServerPatcherModule = Join-Path $PSScriptRoot '..\..\..\..\SqlServerPatcher'
+$SqlServerPatcherModule = Join-Path $PSScriptRoot '..\..\..\..\..\SqlServerPatcher'
 Import-Module $SqlServerPatcherModule -Force
 
-
-$outFolderPath  = Join-Path $PSScriptRoot 'bin\TestOutput'
+$outFolderPath  = Join-Path $PSScriptRoot '..\bin\TestOutput'
 $rootFolderPath = Join-Path $PSScriptRoot 'Patches'
 
 

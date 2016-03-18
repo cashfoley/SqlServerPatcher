@@ -15,3 +15,5 @@ Get-SqlServerPatchHistory
 
 Undo-SqlServerPatch 1
 
+Undo-SqlServerPatch 2
+

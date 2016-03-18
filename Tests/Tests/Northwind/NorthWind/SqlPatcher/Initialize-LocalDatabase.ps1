@@ -1,4 +1,4 @@
-    [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
+[CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
 
 param
 (
