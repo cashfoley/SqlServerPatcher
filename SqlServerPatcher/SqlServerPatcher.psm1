@@ -456,6 +456,7 @@ Class PatchContext
         {
             mkdir $this.OutFolderPath | Out-Null
         }
+        $this.OutFolderPath = Resolve-Path $this.OutFolderPath
 
         $this.DacPacUtil = [DacPacUtil]::new($this)
     }
@@ -953,7 +954,8 @@ Export-ModuleMember -Function Get-ExecutablePatches
 
 function Get-SqlServerPatchHistory
 {
-    param([switch] $ShowAllFields,[switch]$ShowRollbacks)
+    #param([switch] $ShowAllFields,[switch]$ShowRollbacks)
+    param([switch]$ShowRollbacks)
 
     function IndexOfOid($oid)
     {
@@ -985,24 +987,25 @@ function Get-SqlServerPatchHistory
        }
     }
 
-    if ($ShowAllFields)
-    {
-        $ExecutedPatches
-    }
-    else
-    {
-        foreach ($ExecutedPatch in $ExecutedPatches)
-        {
-            [PSCustomObject]@{ OID=$ExecutedPatch.OID
-                               PatchName=$ExecutedPatch.PatchName
-                               #Applied=$ExecutedPatch.Applied
-                               RollBackStatus = $ExecutedPatch.RollbackStatus
-                               RollbackOID = $ExecutedPatch.RollbackOID
-                               #CheckSum = $ExecutedPatch.CheckSum
-                               #RollbackChecksum = $ExecutedPatch.RollbackChecksum
-                             }
-        }
-    }
+#    if ($ShowAllFields)
+#    {
+#        $ExecutedPatches
+#    }
+#    else
+#    {
+#        foreach ($ExecutedPatch in $ExecutedPatches)
+#        {
+#            [PSCustomObject]@{ OID=$ExecutedPatch.OID
+#                               PatchName=$ExecutedPatch.PatchName
+#                               #Applied=$ExecutedPatch.Applied
+#                               RollBackStatus = $ExecutedPatch.RollbackStatus
+#                               RollbackOID = $ExecutedPatch.RollbackOID
+#                               #CheckSum = $ExecutedPatch.CheckSum
+#                               #RollbackChecksum = $ExecutedPatch.RollbackChecksum
+#                             }
+#        }
+#    }
+    $ExecutedPatches
 }
 
 New-Alias -Name PatchHistory -Value Get-SqlServerPatchHistory
@@ -1127,6 +1130,61 @@ function Add-TokenReplacement
 }
 
 Export-ModuleMember -Function Add-TokenReplacemen
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+
+function Test-SqlServerRollback
+{
+    param 
+    ( [string] $PatchName
+    )
+
+    $patchInfo = Get-SqlServerPatchInfo | Where-Object{$_.PatchName -eq $PatchName}
+    if ($patchInfo -eq $null)
+    {
+        Throw "$PatchName not found in queue"
+    }
+
+    if (!($patchInfo.ShouldExecute()))
+    {
+        Throw "$PatchName already executed."
+    }
+
+    if ($patchInfo.RollbackContent -eq '')
+    {
+        Throw "$PatchName does not have a rollback script."
+    }
+
+    $QueuedPatches.PatchContext.AssureSqlServerPatcher()
+
+    Write-Host '======================================================================================'
+    Write-Host ('Verify "{0}"' -f $Patchinfo.PatchName)
+    Write-Host '======================================================================================'
+    $DacpacName = 'Pre-{0}.dacpac' -f $Patchinfo.PatchName.Replace('\','_')
+    Write-Host "Create Pre-deploy DacPac '$DacpacName'"
+    $DacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
+    Set-Dacpac -DacpacFilename $DacpacFile
+
+    Write-Host 'Perform patch'
+    Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
+
+    Write-Host 'Rollback patch'
+    $ExecutedPatch = Get-SqlServerPatchHistory | Where-Object{$_.PatchName -eq $Patchinfo.PatchName}
+    $UndoPatch = Undo-SqlServerPatch $ExecutedPatch.OID -OnlyOne -Force
+
+    Write-Host 'Comparing Dacpac results after Rollback'
+    $RollbackIssues = Get-DacpacActions $DacpacFile
+    if ($RollbackIssues)
+    {
+        Write-Host 'Rollback Issues'
+        $RollbackIssues | Format-Table *
+        Throw 'Houston, we have a problem here.'
+    }
+}
+
+Export-ModuleMember -Function Test-SqlServerRollback
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------

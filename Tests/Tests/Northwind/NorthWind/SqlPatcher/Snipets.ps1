@@ -9,10 +9,36 @@ break;
 
 Get-SqlServerPatchInfo
 
-Publish-Patches
+Publish-SqlServerPatches
 
 Get-SqlServerPatchHistory
 
 Undo-SqlServerPatch 1
 
 Undo-SqlServerPatch 2
+
+
+#foreach ($HistoryItem in $PatchHistory)
+#{
+#    $DacpacName = "{0}.{1}.dacpac" -f $QueuedPatches.PatchContext.DatabaseName,$HistoryItem.OID
+#    $DacpacFileName = Join-Path $workDir $DacpacName
+#    Write-Host "Creating Dacpac '$DacpacFileName'"
+#    Set-Dacpac $DacpacFileName
+#    $ExecutedRollback = Undo-SqlServerPatch $HistoryItem.OID -OnlyOne -Force
+#    Add-Member -InputObject $HistoryItem -NotePropertyName ExecutedRollback -NotePropertyValue $ExecutedRollback
+#}
+#
+#$PatchHistory.Reverse()
+#foreach ($HistoryItem in $PatchHistory)
+#{
+#    $ExecutedRollback = Undo-SqlServerPatch $HistoryItem.ExecutedRollback.OID -OnlyOne -Force
+#
+#    $DacpacName = "{0}.{1}.dacpac" -f $QueuedPatches.PatchContext.DatabaseName,$HistoryItem.OID
+#    $DacpacFileName = Join-Path $workDir $DacpacName
+#    Write-Host "Comparing Dacpac results after Rollback '$DacpacFileName'"
+#    $RollbackIssues = Get-DacpacActions $DacpacFileName
+#    if ($RollbackIssues)
+#    {
+#        Throw 'Houston, we have a problem here.'
+#    }
+#}
