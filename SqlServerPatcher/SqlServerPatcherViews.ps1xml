@@ -42,5 +42,42 @@
         </TableRowEntries>
       </TableControl>
     </View>
+    <View>
+      <Name>DefaultView</Name>
+      <ViewSelectedBy>
+        <TypeName>PatchInfo</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <!--<Width>70</Width>-->
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Rollback Script</Label>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Will Execute</Label>
+            <!--<Width>63</Width>-->
+            <Alignment>Left</Alignment>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>PatchName</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <!--<ScriptBlock>$_.RollbackContent</ScriptBlock>-->
+                <ScriptBlock>$(if ($_.RollbackContent) {'Yes'}else{'No'})</ScriptBlock>
+              </TableColumnItem>
+              <TableColumnItem>
+                <ScriptBlock>$_.ShouldExecute()</ScriptBlock>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
   </ViewDefinitions>
 </Configuration>

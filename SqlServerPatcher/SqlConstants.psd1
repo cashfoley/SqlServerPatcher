@@ -17,36 +17,34 @@ GO
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerPatcher].[FilePatches]') AND type in (N'U'))
 BEGIN
-CREATE TABLE [SqlServerPatcher].[FilePatches](
-    [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
-    [PatchName]         [nvarchar] (450) NOT NULL,
-    [Applied]           [datetime] NOT NULL,
-	[ExecutedByForce]   [bit]      NOT NULL,
-	[UpdatedOnChange]   [bit]      NOT NULL,
-	[IsRollback]        [bit]      NOT NULL,
-    [RollbackOID]       [bigint] NULL,
-    [CheckSum]          [nvarchar] (512) NOT NULL,
-    [PatchScript]       [nvarchar] (MAX),
-    [RollbackScript]    [nvarchar] (max),
-    [RollbackChecksum]  [nvarchar] (512),
-    [LogOutput]         [nvarchar] (MAX)
-) ON [PRIMARY]
+    CREATE TABLE [SqlServerPatcher].[FilePatches](
+        [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
+        [PatchName]         [nvarchar] (450) NOT NULL,
+        [Applied]           [datetime] NOT NULL,
+	    [ExecutedByForce]   [bit]      NOT NULL,
+	    [UpdatedOnChange]   [bit]      NOT NULL,
+	    [IsRollback]        [bit]      NOT NULL,
+        [RollbackOID]       [bigint] NULL,
+        [CheckSum]          [nvarchar] (512) NOT NULL,
+        [PatchScript]       [nvarchar] (MAX),
+        [RollbackScript]    [nvarchar] (max),
+        [RollbackChecksum]  [nvarchar] (512),
+        [LogOutput]         [nvarchar] (MAX)
+    ) ON [PRIMARY]
     
+    ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_ExecutedByForce]  DEFAULT ((0)) FOR [ExecutedByForce]
+
+    ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_UpdatedOnChange]  DEFAULT ((0)) FOR [UpdatedOnChange]
+
+    ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_IsRollback]  DEFAULT ((0)) FOR [IsRollback]
+
 END
 GO
-ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_ExecutedByForce]  DEFAULT ((0)) FOR [ExecutedByForce]
-GO
 
-ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_UpdatedOnChange]  DEFAULT ((0)) FOR [UpdatedOnChange]
-GO
-
-ALTER TABLE [SqlServerPatcher].[FilePatches] ADD  CONSTRAINT [DF_FilePatches_IsRollback]  DEFAULT ((0)) FOR [IsRollback]
-GO
-
-IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'#InsertFilePatch') AND type in (N'P', N'PC'))
+IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'InsertFilePatch') AND type in (N'P', N'PC'))
 BEGIN
 EXEC dbo.sp_executesql @statement = N'
-	CREATE PROCEDURE #InsertFilePatch     
+	CREATE PROCEDURE InsertFilePatch     
         @PatchName [nvarchar](450),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
@@ -135,7 +133,7 @@ SELECT ChecKSum
 
 ############################################################################################################################
 
-    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
+    InsertFilePatchSQL = "EXEC InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
 
 ############################################################################################################################
     

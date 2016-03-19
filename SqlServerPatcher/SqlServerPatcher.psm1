@@ -773,7 +773,12 @@ class QueuedPatches : System.Collections.ArrayList {
 
     [void] PerformPatches()
     {
-            if ($this.GetPatchCount() -eq 0)
+        $this.PerformPatches('')
+    }
+
+    [void] PerformPatches([string]$PatchName)
+    {
+        if ($this.GetPatchCount() -eq 0)
         {
             Write-Host -Object '    No Patches to Apply'
             return
@@ -783,40 +788,42 @@ class QueuedPatches : System.Collections.ArrayList {
             $this.PatchContext.AssureSqlServerPatcher()
             foreach ($PatchInfo in $this.GetExecutablePatches())
             {
-                $this.PatchContext.NewSqlCommand()
-                if ($this.PatchContext.CheckPoint)
+                if ($PatchName -eq '' -or $PatchName -eq $PatchInfo.PatchName)
                 {
-                    #if ($PSCmdlet.ShouldProcess($PatchInfo.PatchName,'Checkpoint Patch')) 
-                    #{
-                        Write-Host "Checkpoint (mark as executed) - $($PatchInfo.PatchName)"
-                        $this.PatchContext.InsertFilePatch($PatchInfo.PatchName, $PatchInfo.Checksum, '', '', '')
-                        $PatchInfo.Executed = $True
-                    #}
-                }
-                else
-                {
-                    Write-Host $PatchInfo.PatchName
-                    
-                    $WhatifExecute = $false
-                    $patchScript = $PatchInfo.GetPatchScript()
-
-                    $this.PatchContext.OutPatchFile($PatchInfo.PatchName, $patchScript)
-
-                    if (!$WhatIfExecute)
+                    $this.PatchContext.NewSqlCommand()
+                    if ($this.PatchContext.CheckPoint)
                     {
-                        $this.PatchContext.NewSqlCommand()
-                        try
-                        {
-                            $this.PatchContext.ExecuteNonQuery( $patchScript )
+                        #if ($PSCmdlet.ShouldProcess($PatchInfo.PatchName,'Checkpoint Patch')) 
+                        #{
+                            Write-Host "Checkpoint (mark as executed) - $($PatchInfo.PatchName)"
+                            $this.PatchContext.InsertFilePatch($PatchInfo.PatchName, $PatchInfo.Checksum, '', '', '')
                             $PatchInfo.Executed = $True
-                        }
-                        Catch
+                        #}
+                    }
+                    else
+                    {
+                        Write-Host $PatchInfo.PatchName
+                    
+                        $WhatifExecute = $false
+                        $patchScript = $PatchInfo.GetPatchScript()
+
+                        $this.PatchContext.OutPatchFile($PatchInfo.PatchName, $patchScript)
+
+                        if (!$WhatIfExecute)
                         {
-                            $this.PatchContext.ExecuteNonQuery($this.PatchContext.SqlConstants.RollbackTransactionScript)
-                            throw $_
+                            $this.PatchContext.NewSqlCommand()
+                            try
+                            {
+                                $this.PatchContext.ExecuteNonQuery( $patchScript )
+                                $PatchInfo.Executed = $True
+                            }
+                            Catch
+                            {
+                                $this.PatchContext.ExecuteNonQuery($this.PatchContext.SqlConstants.RollbackTransactionScript)
+                                throw $_
+                            }
                         }
                     }
-
                 }
             }
         }
@@ -915,8 +922,8 @@ function Publish-SqlServerPatches
 {
     [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
  
-    param () 
-    $script:QueuedPatches.PerformPatches()
+    param ([string]$PatchName='') 
+    $script:QueuedPatches.PerformPatches($PatchName)
     $script:QueuedPatches.Clear()
     $script:QueuedPatches.PatchContext.PerformPatchFileInitializationScript()
 }
@@ -1008,23 +1015,7 @@ Export-ModuleMember -Function Get-SqlServerPatchHistory -Alias PatchHistory
 
 function Get-SqlServerPatchInfo
 {
-    param([switch] $ShowAllFields)
-
-    if ($ShowAllFields)
-    {
-        $QueuedPatches
-    }
-    else
-    {
-        foreach ($PatchInfo in $QueuedPatches)
-        {
-            
-            [PSCustomObject]@{ PatchName=$PatchInfo.PatchName
-                               RollBackScript=$(if ($PatchInfo.RollbackContent) {'Yes'}else{'No'})
-                               ShouldExecute = $PatchInfo.ShouldExecute()
-                             }
-        }
-    }
+    $QueuedPatches
 }
 
 New-Alias -Name PatchInfo -Value Get-SqlServerPatchInfo
