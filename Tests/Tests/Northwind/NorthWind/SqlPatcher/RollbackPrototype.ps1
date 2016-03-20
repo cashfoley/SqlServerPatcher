@@ -2,12 +2,14 @@
 .\Initialize-Patches.ps1
 
 
-$patches = Get-SqlServerPatchInfo | Where-Object{$_.ShouldExecute()}
-$QueuedPatches.PatchContext.AssureSqlServerPatcher()
-foreach ($Patchinfo in $Patches)
-{
-    Test-SqlServerRollback $Patchinfo.PatchName
+$patches = Get-SqlServerPatchInfo -PatchesToExecute
+$patches | Test-SqlServerRollback -ApplyPatchOnSuccess
 
-    Write-Host 'Redo patch'
-    Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
-}
+PatchHistory
+
+RollbackPatch 12
+
+PatchInfo
+
+$patches = Get-SqlServerPatchInfo -PatchesToExecute
+$patches | Test-SqlServerRollback -ApplyPatchOnSuccess

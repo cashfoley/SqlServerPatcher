@@ -64,6 +64,9 @@
     <Folder Include="dbo\Views\" />
     <Folder Include="dbo\Functions\" />
     <Folder Include="dbo\Stored Procedures\" />
+    <Folder Include="SqlPatcher\" />
+    <Folder Include="SqlPatcher\SSDT_PublishSettings\" />
+    <Folder Include="Comparisons\" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="dbo\Tables\Orders.sql" />
@@ -113,7 +116,8 @@
     <Build Include="dbo\Stored Procedures\CustOrderTotal.sql" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="SchemaToLocal.scmp" />
-    <None Include="SchemaToDev.scmp" />
+    <None Include="Comparisons\SchemaToLocal.scmp" />
+    <None Include="Comparisons\DevToLocal.scmp" />
+    <None Include="SqlPatcher\SSDT_PublishSettings\NorthWind.publish.xml" />
   </ItemGroup>
 </Project>

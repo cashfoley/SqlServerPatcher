@@ -1018,7 +1018,15 @@ Export-ModuleMember -Function Get-SqlServerPatchHistory -Alias PatchHistory
 
 function Get-SqlServerPatchInfo
 {
-    $QueuedPatches
+    param ([switch] $PatchesToExecute)
+    if ($PatchesToExecute)
+    {
+        $QueuedPatches.GetExecutablePatches()
+    }
+    else
+    {
+        $QueuedPatches
+    }
 }
 
 New-Alias -Name PatchInfo -Value Get-SqlServerPatchInfo
@@ -1138,49 +1146,60 @@ Export-ModuleMember -Function Add-TokenReplacemen
 function Test-SqlServerRollback
 {
     param 
-    ( [string] $PatchName
+    ( [parameter(ValueFromPipeline=$True,Position=0)]
+      [Patchinfo] $Patchinfo
+    , [switch] $ApplyPatchOnSuccess
     )
 
-    $patchInfo = Get-SqlServerPatchInfo | Where-Object{$_.PatchName -eq $PatchName}
-    if ($patchInfo -eq $null)
+    begin
     {
-        Throw "$PatchName not found in queue"
+        $PatchContext.AssureSqlServerPatcher()
     }
-
-    if (!($patchInfo.ShouldExecute()))
+    process
     {
-        Throw "$PatchName already executed."
-    }
+        if ($patchInfo -ne $null)
+        {
+            if (!($patchInfo.ShouldExecute()))
+            {
+                Throw "$PatchName already executed."
+            }
 
-    if ($patchInfo.RollbackContent -eq '')
-    {
-        Throw "$PatchName does not have a rollback script."
-    }
+            if ($patchInfo.RollbackContent -eq '')
+            {
+                Throw "$PatchName does not have a rollback script."
+            }
 
-    $QueuedPatches.PatchContext.AssureSqlServerPatcher()
 
-    Write-Host '======================================================================================'
-    Write-Host ('Verify "{0}"' -f $Patchinfo.PatchName)
-    Write-Host '======================================================================================'
-    $DacpacName = 'Pre-{0}.dacpac' -f $Patchinfo.PatchName.Replace('\','_')
-    Write-Host "Create Pre-deploy DacPac '$DacpacName'"
-    $DacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
-    Set-Dacpac -DacpacFilename $DacpacFile
+            Write-Host '======================================================================================'
+            Write-Host ('Verify "{0}"' -f $Patchinfo.PatchName)
+            Write-Host '======================================================================================'
+            $DacpacName = 'Pre-{0}.dacpac' -f $Patchinfo.PatchName.Replace('\','_')
+            Write-Host "Create Pre-deploy DacPac '$DacpacName'"
+            $DacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
+            Set-Dacpac -DacpacFilename $DacpacFile
 
-    Write-Host 'Perform patch'
-    Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
+            Write-Host 'Perform patch'
+            Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
 
-    Write-Host 'Rollback patch'
-    $ExecutedPatch = Get-SqlServerPatchHistory | Where-Object{$_.PatchName -eq $Patchinfo.PatchName}
-    $UndoPatch = Undo-SqlServerPatch $ExecutedPatch.OID -OnlyOne -Force
+            Write-Host 'Rollback patch'
+            $ExecutedPatch = Get-SqlServerPatchHistory | Where-Object{$_.PatchName -eq $Patchinfo.PatchName}
+            $UndoPatch = Undo-SqlServerPatch $ExecutedPatch.OID -OnlyOne -Force
 
-    Write-Host 'Comparing Dacpac results after Rollback'
-    $RollbackIssues = Get-DacpacActions $DacpacFile
-    if ($RollbackIssues)
-    {
-        Write-Host 'Rollback Issues'
-        $RollbackIssues | Format-Table *
-        Throw 'Houston, we have a problem here.'
+            Write-Host 'Comparing Dacpac results after Rollback'
+            $RollbackIssues = Get-DacpacActions $DacpacFile
+            if ($RollbackIssues)
+            {
+                Write-Host 'Rollback Issues'
+                $RollbackIssues | Format-Table *
+                Throw 'Houston, we have a problem here.'
+            }
+
+            if ($ApplyPatchOnSuccess)
+            {
+                Write-Host 'Redo patch'
+                Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
+            }
+        }
     }
 }
 
