@@ -24,7 +24,7 @@ BEGIN
 	    [ExecutedByForce]   [bit]      NOT NULL,
 	    [UpdatedOnChange]   [bit]      NOT NULL,
 	    [IsRollback]        [bit]      NOT NULL,
-        [RollbackOID]       [bigint] NULL,
+        [RollbackedByOID]   [bigint] NULL,
         [CheckSum]          [nvarchar] (512) NOT NULL,
         [PatchScript]       [nvarchar] (MAX),
         [RollbackScript]    [nvarchar] (max),
@@ -95,7 +95,7 @@ BEGIN
          , [ExecutedByForce]
          , [UpdatedOnChange]
          , [IsRollback]
-         , [RollbackOID]
+         , [RollbackedByOID]
          , [CheckSum]
          , [PatchScript]
          , [RollbackScript]
@@ -128,9 +128,6 @@ SELECT ChecKSum
              )
 "@
 
-##                 AND (ISNULL([IsRollback],0) != 1))
-##                 AND (RollbackOID IS NULL)
-
 ############################################################################################################################
 
     InsertFilePatchSQL = "EXEC InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
@@ -138,13 +135,14 @@ SELECT ChecKSum
 ############################################################################################################################
     
     InsertRollback = @"
+BEGIN TRANSACTION;
 -- Reverse Scripts for Rollback
 INSERT 
   INTO [SqlServerPatcher].[FilePatches]
      ( [PatchName]
      , [Applied]
      , [IsRollback]
-     , [RollbackOID]
+     , [RollbackedByOID]
      , [CheckSum]
      , [PatchScript]
      , [RollbackChecksum]
@@ -153,13 +151,19 @@ INSERT
 SELECT [PatchName]
      , GetDate()
      , ~(IsRollback)
-     , {0}
+     , NULL
      , [RollbackChecksum]
      , [RollbackScript]
      , [CheckSum]
      , [PatchScript]
   FROM [SqlServerPatcher].[FilePatches]
- WHERE OID = {0}
+ WHERE OID = {0};
+
+UPDATE [SqlServerPatcher].[FilePatches]
+   SET [RollbackedByOID] = SCOPE_IDENTITY()
+ WHERE OID = {0};
+
+COMMIT TRANSACTION;
 "@
 
 ############################################################################################################################
@@ -171,7 +175,7 @@ SELECT [PatchName]
          , [ExecutedByForce]
          , [UpdatedOnChange]
          , [IsRollback]
-         , [RollbackOID]
+         , [RollbackedByOID]
          , [CheckSum]
          , [PatchScript]
          , [RollbackScript]

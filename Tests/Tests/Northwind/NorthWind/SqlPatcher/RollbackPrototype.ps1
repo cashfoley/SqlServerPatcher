@@ -3,13 +3,11 @@
 
 
 $patches = Get-SqlServerPatchInfo -PatchesToExecute
-$patches | Test-SqlServerRollback -ApplyPatchOnSuccess
+$patches | Test-SqlServerRollback 
 
-PatchHistory
+#PatchHistory
 
-RollbackPatch 12
+[void](RollbackPatch 12)
 
-PatchInfo
+# PatchInfo
 
-$patches = Get-SqlServerPatchInfo -PatchesToExecute
-$patches | Test-SqlServerRollback -ApplyPatchOnSuccess

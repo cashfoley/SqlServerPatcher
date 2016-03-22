@@ -13,13 +13,21 @@
             <Width>5</Width>
           </TableColumnHeader>
           <TableColumnHeader>
-            <Width>50</Width>
+            <Label>RB ID</Label>
+            <Width>5</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Is RB</Label>
+            <Width>5</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Width>25</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <!--<Width>50</Width>-->
           </TableColumnHeader>
           <TableColumnHeader>
             <Width>14</Width>
-          </TableColumnHeader>
-          <TableColumnHeader>
-            <Width>11</Width>
           </TableColumnHeader>
         </TableHeaders>
         <TableRowEntries>
@@ -29,13 +37,19 @@
                 <PropertyName>OID</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
+                <PropertyName>RollbackedByOID</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>IsRollback</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Applied</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
                 <PropertyName>PatchName</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
                 <PropertyName>RollBackStatus</PropertyName>
-              </TableColumnItem>
-              <TableColumnItem>
-                <PropertyName>RollbackOID</PropertyName>
               </TableColumnItem>
             </TableColumnItems>
           </TableRowEntry>

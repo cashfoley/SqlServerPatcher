@@ -181,7 +181,7 @@ class ExecutedPatch
     [bool]     $ExecutedByForce
     [bool]     $UpdatedOnChange
     [bool]     $IsRollback
-    [int]      $RollbackOID
+    [int]      $RollbackedByOID
     [string]   $CheckSum
     [string]   $PatchScript
     [string]   $RollbackScript
@@ -195,7 +195,7 @@ class ExecutedPatch
         , [bool]     $ExecutedByForce
         , [bool]     $UpdatedOnChange
         , [bool]     $IsRollback
-        , [int]      $RollbackOID
+        , [int]      $RollbackedByOID
         , [string]   $CheckSum
         , [string]   $PatchScript
         , [string]   $RollbackScript
@@ -210,7 +210,7 @@ class ExecutedPatch
         $this.ExecutedByForce   = $ExecutedByForce
         $this.UpdatedOnChange   = $UpdatedOnChange
         $this.IsRollback        = $IsRollback
-        $this.RollbackOID       = $RollbackOID
+        $this.RollbackedByOID   = $RollbackedByOID
         $this.CheckSum          = $CheckSum
         $this.PatchScript       = $PatchScript
         $this.RollbackScript    = $RollbackScript
@@ -559,13 +559,13 @@ Class PatchContext
         {
             $FilePatchHash[$reader.GetName($idx)] = $reader.GetValue($idx)
         }
-        if ($FilePatchHash.RollbackOID -is [System.DBNull])
+        if ($FilePatchHash.RollbackedByOID -is [System.DBNull])
         {
-            $RollbackOID = 0
+            $RollbackedByOID = 0
         }
         else
         {
-            $RollbackOID = [int]$FilePatchHash.RollbackOID
+            $RollbackedByOID = [int]$FilePatchHash.RollbackedByOID
         }
         $executedPatch = [ExecutedPatch]::new(
               [int]      $FilePatchHash.OID
@@ -574,7 +574,7 @@ Class PatchContext
             , [bool]     ($FilePatchHash.ExecutedByForce -eq $true)
             , [bool]     ($FilePatchHash.UpdatedOnChange -eq $true)
             , [bool]     ($FilePatchHash.IsRollback      -eq $true)
-            , [int]      $RollbackOID
+            , [int]      $RollbackedByOID
             , [string]   $FilePatchHash.CheckSum
             , [string]   $FilePatchHash.PatchScript
             , [string]   $FilePatchHash.RollbackScript
@@ -740,7 +740,7 @@ class QueuedPatches : System.Collections.ArrayList {
         $PatchFullName = $PatchFile.Fullname
         Write-Verbose "`$PatchFullName: $PatchFullName"
         [PatchInfo]$PatchInfo = [PatchInfo]::new($this.PatchContext,$PatchFullName,$Force,$ReExecuteOnChange)
-        [PatchInfo]$ExistingPatch = $this | ?{$_.PatchName -eq $PatchInfo.PatchName}
+        [PatchInfo]$ExistingPatch = $this | Where-Object{$_.PatchName -eq $PatchInfo.PatchName}
         if (!($ExistingPatch))
         {
             [void]$this.Add($PatchInfo)
@@ -970,42 +970,27 @@ function Get-SqlServerPatchHistory
         $RollbackPatches = @()
         foreach ($ExecutedPatch in $ExecutedPatches)
         {
-            if ($ExecutedPatch.RollbackOID -gt 0 -and $ExecutedPatch.IsRollback)
+            if ($ExecutedPatch.RollbackedByOID -eq 0 -and (!$ExecutedPatch.IsRollback))
             {
                 $RollbackPatches += $ExecutedPatch
             }
         }
-        foreach ($RollbackPatch in $RollbackPatches)
-        {
-            $ReferencedPatch = $ExecutedPatches.Where({$_.OID -eq $RollbackPatch.RollbackOID})
-            if ($ReferencedPatch -eq $null)
-            {
-                throw ('Referenced Patch OID {0} not found.  It is Referenced by OID {1}' -f $RollbackPatch.RollbackOID,$RollbackPatch.OID)
-            }
-            $ExecutedPatches.Remove((IndexOfOid $RollbackPatch.OID))
-            $ExecutedPatches.Remove((IndexOfOid $ReferencedPatch.OID))
-       }
+        $RollbackPatches
+        #foreach ($RollbackPatch in $RollbackPatches)
+        #{
+        #    $ReferencedPatch = $ExecutedPatches.Where({$_.OID -eq $RollbackPatch.RollbackedByOID})
+        #    if ($ReferencedPatch -eq $null)
+        #    {
+        #        throw ('Referenced Patch OID {0} not found.  It is Referenced by OID {1}' -f $RollbackPatch.RollbackedByOID,$RollbackPatch.OID)
+        #    }
+        #    $ExecutedPatches.Remove((IndexOfOid $RollbackPatch.OID))
+        #    $ExecutedPatches.Remove((IndexOfOid $ReferencedPatch.OID))
+        #}
     }
-
-#    if ($ShowAllFields)
-#    {
-#        $ExecutedPatches
-#    }
-#    else
-#    {
-#        foreach ($ExecutedPatch in $ExecutedPatches)
-#        {
-#            [PSCustomObject]@{ OID=$ExecutedPatch.OID
-#                               PatchName=$ExecutedPatch.PatchName
-#                               #Applied=$ExecutedPatch.Applied
-#                               RollBackStatus = $ExecutedPatch.RollbackStatus
-#                               RollbackOID = $ExecutedPatch.RollbackOID
-#                               #CheckSum = $ExecutedPatch.CheckSum
-#                               #RollbackChecksum = $ExecutedPatch.RollbackChecksum
-#                             }
-#        }
-#    }
-    $ExecutedPatches
+    else
+    {
+        $ExecutedPatches
+    }
 }
 
 New-Alias -Name PatchHistory -Value Get-SqlServerPatchHistory
@@ -1042,6 +1027,7 @@ function Undo-SqlServerPatch
     param( [int] $OID
          , [switch] $Force
          , [switch] $OnlyOne
+         , [switch] $RollbackRollback
          )
 
     function ValidateHasRollback($ExecutedPatch,[REF]$RollbackPatches,[REF]$WarningsDetected)
@@ -1066,7 +1052,15 @@ function Undo-SqlServerPatch
     }
     
     $ExecutedPatches = [System.Collections.ArrayList]::new()
-    [void] (Get-SqlServerPatchHistory -ShowAllFields -ShowRollbacks | %{$ExecutedPatches.Add($_)})
+
+    if ($RollbackRollback)
+    {
+        [void] (Get-SqlServerPatchHistory -ShowRollbacks | Where-Object{$_.IsRollback} | %{$ExecutedPatches.Add($_)})
+    }
+    else
+    {
+        [void] (Get-SqlServerPatchHistory | %{$ExecutedPatches.Add($_)})
+    }
 
     $ExecutedPatches.Reverse()
 
@@ -1084,7 +1078,7 @@ function Undo-SqlServerPatch
     $WarningsDetected = 0
     if ($OnlyOne)
     {
-        $ExecutedPatch = $ExecutedPatches | ?{$OID -eq $_.OID}
+        $ExecutedPatch = $ExecutedPatches | Where-Object{$OID -eq $_.OID}
         
         ValidateHasRollback $ExecutedPatch ([REF]$RollbackPatches) ([REF]$WarningsDetected)
 
@@ -1148,12 +1142,16 @@ function Test-SqlServerRollback
     param 
     ( [parameter(ValueFromPipeline=$True,Position=0)]
       [Patchinfo] $Patchinfo
-    , [switch] $ApplyPatchOnSuccess
     )
 
     begin
     {
         $PatchContext.AssureSqlServerPatcher()
+
+        $DacpacName = 'PreTest.dacpac' 
+        Write-Host "Create Pre-deploy DacPac '$DacpacName'"
+        $PreDacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
+        Set-Dacpac -DacpacFilename $PreDacpacFile
     }
     process
     {
@@ -1173,32 +1171,39 @@ function Test-SqlServerRollback
             Write-Host '======================================================================================'
             Write-Host ('Verify "{0}"' -f $Patchinfo.PatchName)
             Write-Host '======================================================================================'
-            $DacpacName = 'Pre-{0}.dacpac' -f $Patchinfo.PatchName.Replace('\','_')
-            Write-Host "Create Pre-deploy DacPac '$DacpacName'"
-            $DacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
-            Set-Dacpac -DacpacFilename $DacpacFile
-
             Write-Host 'Perform patch'
             Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
+
+            $DacpacName = 'Post-{0}.dacpac' -f $Patchinfo.PatchName.Replace('\','_')
+            Write-Host "Create Post-deploy DacPac '$DacpacName'"
+            $PostDacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
+            Set-Dacpac -DacpacFilename $PostDacpacFile
 
             Write-Host 'Rollback patch'
             $ExecutedPatch = Get-SqlServerPatchHistory | Where-Object{$_.PatchName -eq $Patchinfo.PatchName}
             $UndoPatch = Undo-SqlServerPatch $ExecutedPatch.OID -OnlyOne -Force
 
             Write-Host 'Comparing Dacpac results after Rollback'
-            $RollbackIssues = Get-DacpacActions $DacpacFile
-            if ($RollbackIssues)
+            $DacPacIssues = Get-DacpacActions $PreDacpacFile
+            if ($DacPacIssues)
             {
                 Write-Host 'Rollback Issues'
-                $RollbackIssues | Format-Table *
+                $DacPacIssues | Format-Table *
                 Throw 'Houston, we have a problem here.'
             }
 
-            if ($ApplyPatchOnSuccess)
+            Write-Host 'Redeploy patch'
+            Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
+
+            Write-Host 'Comparing Dacpac results after Redeploy'
+            $DacPacIssues = Get-DacpacActions $PostDacpacFile
+            if ($DacPacIssues)
             {
-                Write-Host 'Redo patch'
-                Publish-SqlServerPatches -PatchName $Patchinfo.PatchName
+                Write-Host 'Redeploy Issues'
+                $DacPacIssues | Format-Table *
+                Throw 'Houston, we have a problem here.'
             }
+            $PreDacpacFile = $PostDacpacFile
         }
     }
 }
