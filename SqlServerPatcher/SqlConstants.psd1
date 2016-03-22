@@ -210,5 +210,25 @@ WHILE @@TRANCOUNT > 0 COMMIT TRANSACTION;
 WHILE @@TRANCOUNT>0 ROLLBACK TRANSACTION;
 "@
 
+############################################################################################################################
+
+    SqlObjectsQuery = @"
+SELECT [s].[name] Schema_Name
+     , [o].[name] Object_Name
+	 , [o].[type]
+     , [o].[type_desc]
+     , [o].[create_date]
+     , [o].[modify_date]
+  FROM [sys].[objects] o
+     , [sys].[schemas] s
+ WHERE [o].[schema_id] = [s].[schema_id]
+   AND [o].[type] != 'S'
+   AND [s].[name] != 'sys'
+  ORDER BY Schema_Name,Type,Object_Name
+--   AND ([o].[type] in ('V','U','P','FN') OR 
+--        ('ALL' = '{0}' AND [o].[type] != 'S') )
+"@
+
+############################################################################################################################
 
 }

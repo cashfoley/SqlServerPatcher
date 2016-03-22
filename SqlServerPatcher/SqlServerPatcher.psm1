@@ -226,6 +226,31 @@ class ExecutedPatch
 
 }
 
+################################################################################################################
+################################################################################################################
+################################################################################################################
+
+class DbObject
+{
+    [string]   $Type
+    [string]   $SchemaName
+    [string]   $ObjectName
+    [string]   $TypeDesc
+    [datetime] $CreateDate
+    [object] $ModifedDate
+
+    DbObject([hashtable] $DbObjectHash)
+    {
+
+        $this.Type          = $DBObjectHash.Type.Trim()
+        $this.SchemaName    = $DBObjectHash.Schema_Name.Trim()
+        $this.ObjectName    = $DBObjectHash.Object_Name.Trim()
+        $this.TypeDesc      = $DBObjectHash.Type_Desc.Trim()
+        $this.CreateDate    = $DBObjectHash.Create_Date
+        $this.ModifedDate   = $DBObjectHash.Modifed_Date
+    }
+}
+
 ###############################################################################################################
 ################################################################################################################
 ################################################################################################################
@@ -552,13 +577,45 @@ Class PatchContext
         $this.NewSqlCommand('')
     }
 
-    [ExecutedPatch] ReadExecutedPatch([System.Data.SqlClient.SqlDataReader] $reader)
+    [hashtable] ReadSqlRecord([System.Data.SqlClient.SqlDataReader] $reader)
     {
-        $FilePatchHash = @{}
+        $recordHash = @{}
         for ($idx=0; $idx -lt $reader.FieldCount; $idx++)
         {
-            $FilePatchHash[$reader.GetName($idx)] = $reader.GetValue($idx)
+            $recordHash[$reader.GetName($idx)] = $reader.GetValue($idx)
         }
+        return $recordHash
+    }
+
+
+    # ----------------------------------------------------------------------------------
+
+    [array] GetDatabaseObjects()
+    {
+        $this.NewSqlCommand($this.SqlConstants['SqlObjectsQuery'])
+
+        [System.Data.SqlClient.SqlDataReader] $reader = $this.SqlCommand.ExecuteReader()
+        $SqlObjects = @()
+        try
+        {
+            while ($reader.Read()) 
+            {
+                $SqlObjects += [DbObject]::new($this.ReadSqlRecord($reader)) 
+            }
+        }
+        finally
+        {
+            $reader.Close()
+        }
+        return $SqlObjects
+    }
+
+    # ----------------------------------------------------------------------------------
+
+    [ExecutedPatch] ReadExecutedPatch([System.Data.SqlClient.SqlDataReader] $reader)
+    {
+        $FilePatchHash = $this.ReadSqlRecord($reader)
+
         if ($FilePatchHash.RollbackedByOID -is [System.DBNull])
         {
             $RollbackedByOID = 0
@@ -567,6 +624,7 @@ Class PatchContext
         {
             $RollbackedByOID = [int]$FilePatchHash.RollbackedByOID
         }
+
         $executedPatch = [ExecutedPatch]::new(
               [int]      $FilePatchHash.OID
             , [string]   $FilePatchHash.PatchName
@@ -1209,6 +1267,41 @@ function Test-SqlServerRollback
 }
 
 Export-ModuleMember -Function Test-SqlServerRollback
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+
+function Get-SqlServerPatcherDbObjects
+{
+    param (
+      [switch] $All
+    , [switch] $Views
+    , [switch] $Tables
+    , [switch] $StoredProcs
+    , [switch] $Functions
+    , [switch] $ShowSqlServerPatcher
+    )
+
+    if (!($All -or $Views -or $Tables -or $StoredProcs -or $Functions))
+    {
+        $Views = $True
+        $Tables = $True
+        $StoredProcs = $True
+        $Functions = $True
+    }
+
+    $PatchContext.GetDatabaseObjects() | 
+        Where-Object{$ALL -or 
+                     ($Views -and ($_.Type -eq 'V')) -or 
+                     ($Tables -and ($_.Type -eq 'U')) -or 
+                     ($StoredProcs -and ($_.Type -eq 'P')) -or 
+                     ($Functions -and ($_.Type -eq 'FN')) -and
+                     (($_.SchemaName -ne 'SqlServerPatcher') -or $ShowSqlServerPatcher) }
+
+}
+
+Export-ModuleMember -Function Get-SqlServerPatcherDbObjects
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
