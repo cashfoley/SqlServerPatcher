@@ -237,7 +237,7 @@ class DbObject
     [string]   $ObjectName
     [string]   $TypeDesc
     [datetime] $CreateDate
-    [object] $ModifedDate
+    [object]   $ModifedDate
 
     DbObject([hashtable] $DbObjectHash)
     {

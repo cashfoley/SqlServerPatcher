@@ -93,5 +93,53 @@
         </TableRowEntries>
       </TableControl>
     </View>
+
+    <View>
+      <Name>DefaultView</Name>
+      <ViewSelectedBy>
+        <TypeName>DbObject</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+          </TableColumnHeader>
+          <TableColumnHeader>
+          </TableColumnHeader>
+          <TableColumnHeader>
+          </TableColumnHeader>
+          <TableColumnHeader>
+          </TableColumnHeader>
+          <TableColumnHeader>
+          </TableColumnHeader>
+          <TableColumnHeader>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>Type</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>SchemaName</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>ObjectName</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>TypeDesc</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>CreateDate</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>ModifedDate</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+
   </ViewDefinitions>
 </Configuration>
