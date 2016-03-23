@@ -977,6 +977,31 @@ Export-ModuleMember -Function Add-SqlDbPatches
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
+# http://www.powertheshell.com/dynamicargumentcompletion/
+
+$completion_PatchName = {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
+    
+    $patches = Get-SqlServerPatchInfo -PatchesToExecute 
+    
+    foreach ($patch in $patches)
+    {
+        if ($patch -like "$wordToComplete*")
+        {
+             $compResult = New-Object System.Management.Automation.CompletionResult $patch.PatchName, $patch.PatchName, 'ParameterValue', $patch.PatchName 
+             $compResult
+        }
+    }
+#    Get-SqlServerPatchInfo -PatchesToExecute  | Where-Object { $_.Name -like "$wordToComplete*" } | ForEach-Object {
+#        New-Object System.Management.Automation.CompletionResult $_.Name, $_.Name, 'ParameterValue', $_.Name 
+#    }
+}
+
+if (-not $global:options) { $global:options = @{CustomArgumentCompleters = @{};NativeArgumentCompleters = @{}}}
+$global:options['CustomArgumentCompleters']['Publish-SqlServerPatches:PatchName'] = $completion_PatchName
+
+
+$function:tabexpansion2 = $function:tabexpansion2 -replace 'End\r\n{','End { if ($null -ne $options) { $options += $global:options} else {$options = $global:options}'
 function Publish-SqlServerPatches
 {
     [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
@@ -1296,12 +1321,13 @@ function Get-SqlServerPatcherDbObjects
                      ($Views -and ($_.Type -eq 'V')) -or 
                      ($Tables -and ($_.Type -eq 'U')) -or 
                      ($StoredProcs -and ($_.Type -eq 'P')) -or 
-                     ($Functions -and ($_.Type -eq 'FN')) -and
+                     ($Functions -and (($_.Type -eq 'FN' -or ($_.Type -eq 'IF')))) -and
                      (($_.SchemaName -ne 'SqlServerPatcher') -or $ShowSqlServerPatcher) }
-
 }
 
-Export-ModuleMember -Function Get-SqlServerPatcherDbObjects
+New-Alias -Name ShowDbObjects -Value Get-SqlServerPatcherDbObjects
+
+Export-ModuleMember -Function Get-SqlServerPatcherDbObjects -Alias ShowDbObjects
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
