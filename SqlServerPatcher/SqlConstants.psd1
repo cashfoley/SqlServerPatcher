@@ -41,10 +41,10 @@ BEGIN
 END
 GO
 
-IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'InsertFilePatch') AND type in (N'P', N'PC'))
+IF OBJECT_ID('tempdb.SqlServerPatcher.#InsertFilePatch') IS NULL
 BEGIN
 EXEC dbo.sp_executesql @statement = N'
-	CREATE PROCEDURE InsertFilePatch     
+	CREATE PROCEDURE #InsertFilePatch     
         @PatchName [nvarchar](450),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
@@ -80,7 +80,6 @@ EXEC dbo.sp_executesql @statement = N'
 ' 
 END
 GO
-
 COMMIT TRANSACTION;
 "@
 
@@ -130,7 +129,7 @@ SELECT ChecKSum
 
 ############################################################################################################################
 
-    InsertFilePatchSQL = "EXEC InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
+    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
 
 ############################################################################################################################
     
