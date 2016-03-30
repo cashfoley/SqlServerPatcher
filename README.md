@@ -50,6 +50,7 @@ If you were to configure another Database, it would execute all three scripts.
 
 As a native PowerShell module, it works intuitively with your PowerShell deployment scripts.  It does not have complicated configuration files and hardcoded rules and folders.  By simply piping filesystem items into Add-SqlServerPatch, you control the order of patches and the actions associated with them.
 
-
+----
+[![](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.me/CashFoley/25) 
 
 
