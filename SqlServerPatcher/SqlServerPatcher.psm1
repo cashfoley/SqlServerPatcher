@@ -338,8 +338,6 @@ function Set-Dacpac
     $PatchContext.DacPacUtil.ExtractDacPac($DacpacFilename)
 }
 
-Export-ModuleMember -Function Set-Dacpac
-
 function Get-DacpacActions
 {
     param
@@ -357,8 +355,6 @@ function Get-DacpacActions
         return $PatchContext.DacPacUtil.GetDeploymentActions($DacpacFilename)
     } 
 }
-
-Export-ModuleMember -Function Get-DacpacActions
 
 ################################################################################################################
 ################################################################################################################
@@ -391,10 +387,10 @@ Class PatchContext
     #hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
     hidden [string] $QueriesExpression = @"
 (
- (?'Query'                     # Beginning of Query
- ( 
-   (--.*?$)                            
-  |(/\*.*?\*/)                 # Scan for /* comments */ - Ignores GO lines in comments
+ (?'Query'                     
+ (                             # Ignore Comments and inside quoted strings looking for a GO statement
+   (--.*?$)                    # Scan for line comments         
+  |(/\*.*?\*/)                 # and /* comments */ 
   |('                          # OR - Beginning of a string quote 
     (?>                        # Begin Atomic Group
      (?>''|[^']+)+)            # Another Atomic Group.  Matches a '' or any non '
@@ -431,7 +427,6 @@ Class PatchContext
         , [string] $OutFolderPathParm
         , [string] $EnvironmentParm
         , [scriptblock] $PatchFileInitializationScript
-        , [string] $dacpacDllPath
         , [bool]   $Checkpoint
         )
     {
@@ -937,8 +932,6 @@ function TerminalError($Exception,$OptionalMsg)
     Throw $errorQueryMsg
 }
 
-Export-ModuleMember -Function TerminalError
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -971,37 +964,36 @@ function Add-SqlDbPatches
     }
 }
 
-Export-ModuleMember -Function Add-SqlDbPatches
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
-# http://www.powertheshell.com/dynamicargumentcompletion/
+# # http://www.powertheshell.com/dynamicargumentcompletion/
+# 
+# $completion_PatchName = {
+#     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
+#     
+#     $patches = Get-SqlServerPatchInfo -PatchesToExecute 
+#     
+#     foreach ($patch in $patches)
+#     {
+#         if ($patch -like "$wordToComplete*")
+#         {
+#              $compResult = New-Object System.Management.Automation.CompletionResult $patch.PatchName, $patch.PatchName, 'ParameterValue', $patch.PatchName 
+#              $compResult
+#         }
+#     }
+# #    Get-SqlServerPatchInfo -PatchesToExecute  | Where-Object { $_.Name -like "$wordToComplete*" } | ForEach-Object {
+# #        New-Object System.Management.Automation.CompletionResult $_.Name, $_.Name, 'ParameterValue', $_.Name 
+# #    }
+# }
+# 
+# if (-not $global:options) { $global:options = @{CustomArgumentCompleters = @{};NativeArgumentCompleters = @{}}}
+# $global:options['CustomArgumentCompleters']['Publish-SqlServerPatches:PatchName'] = $completion_PatchName
+# 
+# 
+# $function:tabexpansion2 = $function:tabexpansion2 -replace 'End\r\n{','End { if ($null -ne $options) { $options += $global:options} else {$options = $global:options}'
 
-$completion_PatchName = {
-    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
-    
-    $patches = Get-SqlServerPatchInfo -PatchesToExecute 
-    
-    foreach ($patch in $patches)
-    {
-        if ($patch -like "$wordToComplete*")
-        {
-             $compResult = New-Object System.Management.Automation.CompletionResult $patch.PatchName, $patch.PatchName, 'ParameterValue', $patch.PatchName 
-             $compResult
-        }
-    }
-#    Get-SqlServerPatchInfo -PatchesToExecute  | Where-Object { $_.Name -like "$wordToComplete*" } | ForEach-Object {
-#        New-Object System.Management.Automation.CompletionResult $_.Name, $_.Name, 'ParameterValue', $_.Name 
-#    }
-}
-
-if (-not $global:options) { $global:options = @{CustomArgumentCompleters = @{};NativeArgumentCompleters = @{}}}
-$global:options['CustomArgumentCompleters']['Publish-SqlServerPatches:PatchName'] = $completion_PatchName
-
-
-$function:tabexpansion2 = $function:tabexpansion2 -replace 'End\r\n{','End { if ($null -ne $options) { $options += $global:options} else {$options = $global:options}'
 function Publish-SqlServerPatches
 {
     [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
@@ -1011,11 +1003,6 @@ function Publish-SqlServerPatches
     $script:QueuedPatches.Clear()
     $script:QueuedPatches.PatchContext.PerformPatchFileInitializationScript()
 }
-
-New-Alias -Name Publish-Patches -Value Publish-SqlServerPatches
-New-Alias -Name PublishPatches -Value Publish-SqlServerPatches
-
-Export-ModuleMember -Function Publish-SqlServerPatches -Alias Publish-Patches,PublishPatches
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1028,8 +1015,6 @@ function Get-ExecutablePatches
         $PatchInfo
     }
 }
-
-Export-ModuleMember -Function Get-ExecutablePatches
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1076,10 +1061,6 @@ function Get-SqlServerPatchHistory
     }
 }
 
-New-Alias -Name PatchHistory -Value Get-SqlServerPatchHistory
-
-Export-ModuleMember -Function Get-SqlServerPatchHistory -Alias PatchHistory
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1097,15 +1078,11 @@ function Get-SqlServerPatchInfo
     }
 }
 
-New-Alias -Name PatchInfo -Value Get-SqlServerPatchInfo
-
-Export-ModuleMember -Function Get-SqlServerPatchInfo -Alias PatchInfo
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 
-function Undo-SqlServerPatch
+function Undo-SqlServerPatches
 {
     param( [int] $OID
          , [switch] $Force
@@ -1202,9 +1179,6 @@ function Undo-SqlServerPatch
     $script:QueuedPatches.PatchContext.PerformPatchFileInitializationScript()
 }
 
-New-Alias -Name RollbackPatch -Value Undo-SqlServerPatch
-Export-ModuleMember -Function Undo-SqlServerPatch -Alias RollbackPatch
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1213,8 +1187,6 @@ function Add-TokenReplacement
     param([string]$TokenValue, [string]$ReplacementValue)
     $PatchContext.TokenList.AddTokenPair($TokenValue,$ReplacementValue)
 }
-
-Export-ModuleMember -Function Add-TokenReplacemen
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1264,7 +1236,7 @@ function Test-SqlServerRollback
 
             Write-Host 'Rollback patch'
             $ExecutedPatch = Get-SqlServerPatchHistory | Where-Object{$_.PatchName -eq $Patchinfo.PatchName}
-            $UndoPatch = Undo-SqlServerPatch $ExecutedPatch.OID -OnlyOne -Force
+            $UndoPatch = Undo-SqlServerPatches $ExecutedPatch.OID -OnlyOne -Force
 
             Write-Host 'Comparing Dacpac results after Rollback'
             $DacPacIssues = Get-DacpacActions $PreDacpacFile
@@ -1290,8 +1262,6 @@ function Test-SqlServerRollback
         }
     }
 }
-
-Export-ModuleMember -Function Test-SqlServerRollback
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1325,10 +1295,6 @@ function Get-SqlServerPatcherDbObjects
                      (($_.SchemaName -ne 'SqlServerPatcher') -or $ShowSqlServerPatcher) }
 }
 
-New-Alias -Name ShowDbObjects -Value Get-SqlServerPatcherDbObjects
-
-Export-ModuleMember -Function Get-SqlServerPatcherDbObjects -Alias ShowDbObjects
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1347,7 +1313,6 @@ function Initialize-SqlServerPatcher
     , [string]$OutFolderPath = (Join-Path -Path $RootFolderPath -ChildPath 'OutFolder')
     , [scriptblock]$PatchFileInitializationScript
     , [string]$SqlLogFile = $null
-    , [string]$DacpacDllPath = 'C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions\Microsoft\SQLDB\DAC\120'
     , [switch]$PublishWhatIf
     , [switch]$EchoSql
     , [switch]$DisplayCallStack
@@ -1370,7 +1335,7 @@ function Initialize-SqlServerPatcher
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$DacpacDllPath,$Checkpoint)
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$Checkpoint)
     
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
@@ -1386,8 +1351,6 @@ function Initialize-SqlServerPatcher
     # AssureSqlServerPatcher
 }
 
-Export-ModuleMember -Function Initialize-SqlServerPatcher
-
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
@@ -1398,6 +1361,38 @@ $PublishWhatIf = $false
 
 Export-ModuleMember -Variable QueuedPatches
 
-########################################################################################
-# 
-#  Validate there aren't any Rollbacks without patches
+# ----------------------------------------------------------------------------------
+
+New-Alias -Name PublishPatches -Value Publish-SqlServerPatches
+Export-ModuleMember -Function Publish-SqlServerPatches -Alias PublishPatches
+
+# ----------------------------------------------------------------------------------
+
+New-Alias -Name RollbackPatch -Value Undo-SqlServerPatches
+Export-ModuleMember -Function Undo-SqlServerPatches -Alias RollbackPatch
+
+# ----------------------------------------------------------------------------------
+
+New-Alias -Name ShowPatchHistory -Value Get-SqlServerPatchHistory
+Export-ModuleMember -Function Get-SqlServerPatchHistory -Alias ShowPatchHistory
+
+# ----------------------------------------------------------------------------------
+
+New-Alias -Name ShowPatchInfo -Value Get-SqlServerPatchInfo
+Export-ModuleMember -Function Get-SqlServerPatchInfo -Alias ShowPatchInfo
+
+# ----------------------------------------------------------------------------------
+
+New-Alias -Name ShowDbObjects -Value Get-SqlServerPatcherDbObjects
+Export-ModuleMember -Function Get-SqlServerPatcherDbObjects -Alias ShowDbObjects
+
+# ----------------------------------------------------------------------------------
+
+Export-ModuleMember -Function Set-Dacpac
+Export-ModuleMember -Function Get-DacpacActions
+Export-ModuleMember -Function TerminalError
+Export-ModuleMember -Function Add-SqlDbPatches
+Export-ModuleMember -Function Get-ExecutablePatches
+Export-ModuleMember -Function Add-TokenReplacemen
+Export-ModuleMember -Function Test-SqlServerRollback
+Export-ModuleMember -Function Initialize-SqlServerPatcher
