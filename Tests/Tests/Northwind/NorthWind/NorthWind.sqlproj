@@ -117,8 +117,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Comparisons\SchemaToLocal.scmp" />
-    <None Include="Comparisons\DevToLocal.scmp" />
     <None Include="SqlPatcher\SSDT_PublishSettings\NorthWind.publish.xml" />
-    <None Include="Comparisons\SchemaToDev.scmp" />
+    <None Include="Comparisons\DevToLocal.scmp" />
   </ItemGroup>
 </Project>

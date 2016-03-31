@@ -13,6 +13,9 @@ Publish-SqlServerPatches
 
 Get-SqlServerPatchHistory
 
+
+Get-SqlServerPatchInfo -PatchesToExecute | Test-SqlServerRollback
+
 Undo-SqlServerPatch 1
 
 Undo-SqlServerPatch 2
