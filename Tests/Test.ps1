@@ -120,7 +120,7 @@ Test-ForPatches -TestPatchNames @(
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created'
 
-Publish-Patches
+Publish-SqlServerPatches
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created during Checkpoint'
 
@@ -132,7 +132,7 @@ Describe 'Verify No Patches to be run after Checkpoint' {
     }
 }
 
-Publish-Patches
+Publish-SqlServerPatches
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created after Checkpoint'
 
@@ -153,7 +153,7 @@ Test-ForPatches -TestPatchNames @(
 
 Test-ForSqlObjects -TestDoesntExist -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables are not created'
 
-Publish-Patches
+Publish-SqlServerPatches
 
 Test-ForSqlObjects -ObjectNames @('dbo.SampleItems','dbo.ScriptsRun','dbo.ScriptsRunErrors','dbo.Version') -Description 'Tables got created'
 
@@ -167,7 +167,7 @@ Describe 'Verify No Patches to be run after publish' {
     }
 }
 
-Publish-Patches
+Publish-SqlServerPatches
 .\Initialize-TestPatches.ps1
 
 ##############################################################################################################################
