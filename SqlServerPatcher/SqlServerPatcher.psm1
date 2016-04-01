@@ -189,16 +189,17 @@ class ExecutedPatch
     [string]   $LogOutput
 
     ExecutedPatch(
-          [int]      $OID
-        , [string]   $PatchName
-        , [datetime] $Applied
-        , [bool]     $ExecutedByForce
-        , [bool]     $UpdatedOnChange
-        , [bool]     $IsRollback
-        , [int]      $RollbackedByOID
-        , [string]   $CheckSum
-        , [string]   $PatchScript
-        , [string]   $LogOutput
+          [QueuedPatches] $QueuedPatches
+        , [int]           $OID
+        , [string]        $PatchName
+        , [datetime]      $Applied
+        , [bool]          $ExecutedByForce
+        , [bool]          $UpdatedOnChange
+        , [bool]          $IsRollback
+        , [int]           $RollbackedByOID
+        , [string]        $CheckSum
+        , [string]        $PatchScript
+        , [string]        $LogOutput
         )
     {
 
@@ -214,7 +215,7 @@ class ExecutedPatch
 
         $this.LogOutput         = $LogOutput
 
-        $Patch = $script:QueuedPatches.FindPatchByName($PatchName)
+        $Patch = $QueuedPatches.FindPatchByName($PatchName)
         if ($Patch)
         {
             $this.RollbackScript = $Patch.RollbackContent
@@ -624,7 +625,7 @@ Class PatchContext
 
     # ----------------------------------------------------------------------------------
 
-    [ExecutedPatch] ReadExecutedPatch([System.Data.SqlClient.SqlDataReader] $reader)
+    [ExecutedPatch] ReadExecutedPatch([System.Data.SqlClient.SqlDataReader] $reader,$QueuedPatches)
     {
         $FilePatchHash = $this.ReadSqlRecord($reader)
 
@@ -638,22 +639,23 @@ Class PatchContext
         }
 
         $executedPatch = [ExecutedPatch]::new(
-              [int]      $FilePatchHash.OID
-            , [string]   $FilePatchHash.PatchName
-            , [datetime] $FilePatchHash.Applied
-            , [bool]     ($FilePatchHash.ExecutedByForce -eq $true)
-            , [bool]     ($FilePatchHash.UpdatedOnChange -eq $true)
-            , [bool]     ($FilePatchHash.IsRollback      -eq $true)
-            , [int]      $RollbackedByOID
-            , [string]   $FilePatchHash.CheckSum
-            , [string]   $FilePatchHash.PatchScript
-            , [string]   $FilePatchHash.LogOutput
+              [QueuedPatches] $QueuedPatches
+            , [int]           $FilePatchHash.OID
+            , [string]        $FilePatchHash.PatchName
+            , [datetime]      $FilePatchHash.Applied
+            , [bool]          ($FilePatchHash.ExecutedByForce -eq $true)
+            , [bool]          ($FilePatchHash.UpdatedOnChange -eq $true)
+            , [bool]          ($FilePatchHash.IsRollback      -eq $true)
+            , [int]           $RollbackedByOID
+            , [string]        $FilePatchHash.CheckSum
+            , [string]        $FilePatchHash.PatchScript
+            , [string]        $FilePatchHash.LogOutput
             )
         return $executedPatch
     }
 
     # ----------------------------------------------------------------------------------
-    [ExecutedPatch] RollbackExecutedPatch([ExecutedPatch]$ExecutedPatch)
+    [ExecutedPatch] RollbackExecutedPatch([ExecutedPatch]$ExecutedPatch,$QueuedPatches)
     {
         $this.NewSqlCommand()
         $script = $this.GetRollbackScript($ExecutedPatch)
@@ -664,7 +666,7 @@ Class PatchContext
         try
         {
             $reader.Read() 
-            return $this.ReadExecutedPatch($reader)
+            return $this.ReadExecutedPatch($reader,$QueuedPatches)
         }
         finally
         {
@@ -674,7 +676,7 @@ Class PatchContext
     
     # ----------------------------------------------------------------------------------
     
-    [array] GetExecutedPatches()
+    [array] GetExecutedPatches($QueuedPatches)
     {
         $this.NewSqlCommand($this.SqlConstants['SelectFilePatchesQuery'])
 
@@ -684,7 +686,7 @@ Class PatchContext
         {
             while ($reader.Read()) 
             {
-                $FilePatches += $this.ReadExecutedPatch($reader)
+                $FilePatches += $this.ReadExecutedPatch($reader,$QueuedPatches)
             }
         }
         finally
@@ -700,7 +702,7 @@ Class PatchContext
     {
         $script = ($this.SqlConstants.BeginTransctionScript + "`nGO`n") + 
                   ($ExecutedPatch.RollbackScript + "`nGO`n") + 
-                  ($this.SqlConstants.InsertRollback -f $ExecutedPatch.OID + "`nGO`n") +
+                  ($this.SqlConstants.InsertRollback -f $ExecutedPatch.OID,$ExecutedPatch.RollbackScript.Replace("'","''") + "`nGO`n") +
                   ($this.SqlConstants.EndTransactionScript)
         
         return $script
@@ -751,7 +753,7 @@ Class PatchContext
     # ----------------------------------------------------------------------------------
     [string] GetInsertFilePatchString($PatchName, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
     {
-        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),$RollbackScript.Replace("'","''"),$RollbackChecksum.Replace("'","''"),'0','0'
+        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
     }
 
     # ----------------------------------------------------------------------------------
@@ -1057,7 +1059,7 @@ function Get-SqlServerPatchHistory
     }
 
     $ExecutedPatches = [System.Collections.ArrayList]::new()
-    [void] ($QueuedPatches.PatchContext.GetExecutedPatches() | %{$ExecutedPatches.Add($_)})
+    [void] ($QueuedPatches.PatchContext.GetExecutedPatches($QueuedPatches) | %{$ExecutedPatches.Add($_)})
 
     if (!$ShowRollbacks)
     {
@@ -1188,7 +1190,7 @@ function Undo-SqlServerPatches
     foreach ($ExecutedPatch in $RollbackPatches)
     {
         #Write-Host ('Rollback {0} - {1}' -f $ExecutedPatch.OID, $ExecutedPatch.PatchName)
-        $PatchContext.RollbackExecutedPatch($ExecutedPatch)
+        $PatchContext.RollbackExecutedPatch($ExecutedPatch,$QueuedPatches)
     }
     
     $script:QueuedPatches.Clear()
