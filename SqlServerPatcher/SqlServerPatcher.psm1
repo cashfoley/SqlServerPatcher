@@ -58,7 +58,6 @@ class PatchInfo
         }
         else
         {
-            $this.Force = $Force
             $this.ReExecuteOnChange = $ReExecuteOnChange
 
             $this.CheckSum = $This.GetFileChecksum($PatchFile)
@@ -66,7 +65,8 @@ class PatchInfo
 
             $this.PatchContent = $this.PatchContext.TokenList.ReplaceTokens((Get-Content $this.PatchFile | Out-String))
         }
-
+        $this.Force = $Force
+        $this.Executed = $this.PatchContext.TestForPatch($this.PatchName)  #Todo: need to combine with GetChecksumForPatch
      }
 
     # ----------------------------------------------------------------------------------
@@ -198,8 +198,6 @@ class ExecutedPatch
         , [int]      $RollbackedByOID
         , [string]   $CheckSum
         , [string]   $PatchScript
-        , [string]   $RollbackScript
-        , [string]   $RollbackChecksum
         , [string]   $LogOutput
         )
     {
@@ -213,14 +211,18 @@ class ExecutedPatch
         $this.RollbackedByOID   = $RollbackedByOID
         $this.CheckSum          = $CheckSum
         $this.PatchScript       = $PatchScript
-        $this.RollbackScript    = $RollbackScript
-        $this.RollbackChecksum  = $RollbackChecksum
+
         $this.LogOutput         = $LogOutput
 
-        $this.RollbackStatus = 'Not Available'
-        if ($this.RollbackScript)
+        $Patch = $script:QueuedPatches.FindPatchByName($PatchName)
+        if ($Patch)
         {
+            $this.RollbackScript = $Patch.RollbackContent
             $this.RollbackStatus = 'Available'
+        }
+        else
+        {
+            $this.RollbackStatus = 'Not Available'  
         }
     }
 
@@ -558,6 +560,21 @@ Class PatchContext
         }
     }
     # ----------------------------------------------------------------------------------
+    [bool] TestForPatch($PatchName)
+    {
+        if ($this.GetSqlServerPatcherVersion() -gt 0)
+        {
+            $this.NewSqlCommand($this.SqlConstants.TestForPatch)
+            ($this.SqlCommand.Parameters.Add('@PatchName',$null)).value = $PatchName
+            return $this.SqlCommand.ExecuteScalar() -gt 0
+        }
+        else
+        {
+            return $false
+        }
+    }
+
+    # ----------------------------------------------------------------------------------
     [void] NewSqlCommand($CommandText='')
     {
         $NewSqlCmd = $this.Connection.CreateCommand()
@@ -630,8 +647,6 @@ Class PatchContext
             , [int]      $RollbackedByOID
             , [string]   $FilePatchHash.CheckSum
             , [string]   $FilePatchHash.PatchScript
-            , [string]   $FilePatchHash.RollbackScript
-            , [string]   $FilePatchHash.RollbackChecksum
             , [string]   $FilePatchHash.LogOutput
             )
         return $executedPatch
@@ -812,6 +827,18 @@ class QueuedPatches : System.Collections.ArrayList {
     [void] RemoveTopPatch()
     {
         $this.RemoveAt(0)    
+    }
+
+    [PatchInfo] FindPatchByName($PatchName)
+    {
+        foreach ($Patch in $this)
+        {
+            if ($Patch.PatchName -eq $PatchName)
+            {
+                return $patch
+            }
+        }
+        return $null
     }
 
     [PatchInfo[]] GetExecutablePatches()
@@ -1022,7 +1049,6 @@ function Get-ExecutablePatches
 
 function Get-SqlServerPatchHistory
 {
-    #param([switch] $ShowAllFields,[switch]$ShowRollbacks)
     param([switch]$ShowRollbacks)
 
     function IndexOfOid($oid)
@@ -1044,16 +1070,6 @@ function Get-SqlServerPatchHistory
             }
         }
         $RollbackPatches
-        #foreach ($RollbackPatch in $RollbackPatches)
-        #{
-        #    $ReferencedPatch = $ExecutedPatches.Where({$_.OID -eq $RollbackPatch.RollbackedByOID})
-        #    if ($ReferencedPatch -eq $null)
-        #    {
-        #        throw ('Referenced Patch OID {0} not found.  It is Referenced by OID {1}' -f $RollbackPatch.RollbackedByOID,$RollbackPatch.OID)
-        #    }
-        #    $ExecutedPatches.Remove((IndexOfOid $RollbackPatch.OID))
-        #    $ExecutedPatches.Remove((IndexOfOid $ReferencedPatch.OID))
-        #}
     }
     else
     {
