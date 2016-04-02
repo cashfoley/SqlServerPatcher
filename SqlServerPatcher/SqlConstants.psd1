@@ -27,8 +27,6 @@ BEGIN
         [RollbackedByOID]   [bigint] NULL,
         [CheckSum]          [nvarchar] (512) NOT NULL,
         [PatchScript]       [nvarchar] (MAX),
-        [RollbackScript]    [nvarchar] (max),
-        [RollbackChecksum]  [nvarchar] (512),
         [LogOutput]         [nvarchar] (MAX)
     ) ON [PRIMARY]
     
@@ -48,8 +46,6 @@ EXEC dbo.sp_executesql @statement = N'
         @PatchName [nvarchar](450),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
-        @RollbackScript  [nvarchar](MAX),
-        @RollbackCheckSum [nvarchar](100),
 		@ExecutedByForce [bit],
 		@UpdatedOnChange [bit]
     AS
@@ -62,8 +58,6 @@ EXEC dbo.sp_executesql @statement = N'
                 , [Applied]
                 , [CheckSum]
                 , [PatchScript]
-                , [RollbackScript]
-                , [RollbackCheckSum]
 				, [ExecutedByForce]
 				, [UpdatedOnChange]
                 )
@@ -71,8 +65,6 @@ EXEC dbo.sp_executesql @statement = N'
                 , GetDate()
                 , @CheckSum
                 , @PatchScript
-                , @RollbackScript
-                , @RollbackCheckSum
 				, @ExecutedByForce
 				, @UpdatedOnChange
 				)
@@ -97,15 +89,13 @@ BEGIN
          , [RollbackedByOID]
          , [CheckSum]
          , [PatchScript]
-         , [RollbackScript]
-         , [RollbackChecksum]
          , [LogOutput]
       FROM [SqlServerPatcher].[FilePatches] FilePatches
      ORDER BY [OID]
 END
 "@
 
-############################################################################################################################
+#####################################
 
     GetSqlServerPatcherVersion = @"
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[SqlServerPatcher].[FilePatches]') AND type in (N'U'))
@@ -128,8 +118,15 @@ SELECT ChecKSum
 "@
 
 ############################################################################################################################
+    TestForPatch = @"
+SELECT COUNT(OID)
+  FROM [SqlServerPatcher].[FilePatches]
+ WHERE PatchName = @PatchName
+"@
 
-    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}',N'{6}'"
+############################################################################################################################
+
+    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}'"
 
 ############################################################################################################################
     
@@ -142,19 +139,15 @@ INSERT
      , [Applied]
      , [IsRollback]
      , [RollbackedByOID]
-     , [CheckSum]
      , [PatchScript]
-     , [RollbackChecksum]
-     , [RollbackScript]
+     , [CheckSum]
 	 )
 SELECT [PatchName]
      , GetDate()
      , ~(IsRollback)
      , NULL
-     , [RollbackChecksum]
-     , [RollbackScript]
-     , [CheckSum]
-     , [PatchScript]
+     , N'{1}'
+     , ''
   FROM [SqlServerPatcher].[FilePatches]
  WHERE OID = {0};
 
@@ -177,8 +170,6 @@ COMMIT TRANSACTION;
          , [RollbackedByOID]
          , [CheckSum]
          , [PatchScript]
-         , [RollbackScript]
-         , [RollbackChecksum]
          , [LogOutput]
       FROM [SqlServerPatcher].[FilePatches] FilePatches
      WHERE [OID] = SCOPE_IDENTITY()
