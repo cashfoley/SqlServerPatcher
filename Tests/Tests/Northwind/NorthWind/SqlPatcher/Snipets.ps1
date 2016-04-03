@@ -16,10 +16,11 @@ Get-SqlServerPatchHistory
 
 Get-SqlServerPatchInfo -PatchesToExecute | Test-SqlServerRollback
 
-Undo-SqlServerPatch 1
+Undo-SqlServerPatches 1
 
-Undo-SqlServerPatch 2
+Undo-SqlServerPatches 2
 
+.\Initialize-Patches.ps1; help Initialize-SqlServerPatcher  -Detailed
 
 #foreach ($HistoryItem in $PatchHistory)
 #{

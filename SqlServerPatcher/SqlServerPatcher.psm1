@@ -1319,13 +1319,72 @@ function Get-SqlServerPatcherDbObjects
 
 $PatchContext = $null
 
+<#
+.Synopsis
+   Initializes SqlServerPatcher to perform SQL Deployments.  
+.DESCRIPTION
+   Long description
+.EXAMPLE 
+Initialize-SqlServerPatcher -ServerName 'SQLSERVERDEV01' -DatabaseName 'DevDb01'-RootFolderPath 'Patches'
+This is a minimal example script initialiinge SqlServerPatcher to perfrom patches.
+
+It initilzes the key values of ServerName, DatabaseName and the root folder where your patches exist.
+.EXAMPLE
+./Initialize-Patches.ps1
+
+param
+( [string] $ServerName = '.'
+, [string] $DatabaseName = 'NorthwindLocal' 
+)
+
+[scriptblock] $PatchFileInitializationScript = {
+    Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches
+}
+
+Initialize-SqlServerPatcher -ServerName $ServerName `
+                            -DatabaseName $DatabaseName `
+                            -RootFolderPath (Join-Path $PSScriptRoot 'Patches') `
+                            -OutFolderPath (Join-Path $PSScriptRoot 'ScriptOutput') `
+                            -PatchFileInitializationScript:$PatchFileInitializationScript
+-----------------------------------------------------------------------------------------------------
+This is an example script that will initialize SqlServerPatcher to perfrom patches.
+
+It initilzes the key values of ServerName, DatabaseName, specifies the root folder where your patches
+exist and a folder for directing output scripts.
+
+It also provides an optional PatchFileInitializationScript.  This script executes automatically to
+refesh the state of Patch Infomation after Publishing or Rolling Back patches.  The script executes
+relative to the RootFolderPath.
+.PARAMETER ServerName
+   Specifies the Sql Server Name.  If necessary provide the Instance and Port number for your server.
+.OUTPUTS
+   Output from this cmdlet (if any)
+.NOTES
+   General notes
+.COMPONENT
+   The component this cmdlet belongs to
+.ROLE
+   The role this cmdlet belongs to
+.FUNCTIONALITY
+   The functionality that best describes this cmdlet
+#>
 function Initialize-SqlServerPatcher
 {
-    [CmdletBinding(SupportsShouldProcess = $TRUE,ConfirmImpact = 'Medium')]
-
     param 
-    ( [string]$ServerName
-    , [string]$DatabaseName
+    ( [Parameter(Mandatory=$true,Position=0,ParameterSetName='Parameter Server and Database')]
+      [ValidateNotNull()]
+      [ValidateNotNullOrEmpty()]
+      [string]$ServerName
+
+    , [Parameter(Mandatory=$true,Position=1,ParameterSetName='Parameter Server and Database')]
+      [ValidateNotNull()]
+      [ValidateNotNullOrEmpty()][string]$DatabaseName
+
+    #, [Parameter(Mandatory=$true,Position=0,ParameterSetName='Parameter Connection String')]
+    #  [ValidateNotNull()]
+    #  [ValidateNotNullOrEmpty()]
+    #  [string]$ConnectionString
+
     , [string]$RootFolderPath
     , [string]$Environment
     , [string]$OutFolderPath = (Join-Path -Path $RootFolderPath -ChildPath 'OutFolder')
