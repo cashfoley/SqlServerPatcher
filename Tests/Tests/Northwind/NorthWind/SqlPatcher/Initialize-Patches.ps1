@@ -3,37 +3,32 @@ param
 ( [string] $Environment = ''
 , [string] $ServerName = '.'
 , [string] $DatabaseName = 'NorthwindLocal'
-, [switch] $Checkpoint
 , [scriptblock] $PatchFileInitializationScript = {
-                    Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches
+                    Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches 
                 }
 )
 
 $ErrorActionPreference = 'Stop'
 
+#region Find Module Root Folder
 ### Find root Folder
-$RootFolder = $PSScriptRoot
-while (!(Test-Path (Join-Path $RootFolder 'Readme.md')))
+$ModuleRoot = $PSScriptRoot
+while (!(Test-Path (Join-Path $ModuleRoot 'Readme.md')))
 {
-    $RootFolder = split-Path $RootFolder 
+    $ModuleRoot = split-Path $ModuleRoot 
 }
+#endregion
 
-$MicrosoftSqlDbDac = Join-Path $RootFolder '..\Microsoft.SqlDb.DAC.12' -Resolve
+$MicrosoftSqlDbDac = Join-Path $ModuleRoot '..\Microsoft.SqlDb.DAC.12' -Resolve
 Import-Module $MicrosoftSqlDbDac -Force 
 
-
-$SqlServerPatcherModule = Join-Path $RootFolder 'SqlServerPatcher'
+$SqlServerPatcherModule = Join-Path $ModuleRoot 'SqlServerPatcher'
 Import-Module $SqlServerPatcherModule -Force 
-
-$outFolderPath  = Join-Path $PSScriptRoot '..\bin\TestOutput'
-$rootFolderPath = Join-Path $PSScriptRoot 'Patches'
-
 
 Initialize-SqlServerPatcher -ServerName $ServerName `
                             -DatabaseName $DatabaseName `
-                            -RootFolderPath $rootFolderPath `
-                            -OutFolderPath $outFolderPath `
+                            -RootFolderPath (Join-Path $PSScriptRoot 'Patches') `
+                            -OutFolderPath (Join-Path $PSScriptRoot '..\bin\TestOutput') `
                             -Environment $Environment `
-                            -Checkpoint:$Checkpoint `
                             -PatchFileInitializationScript:$PatchFileInitializationScript
 
