@@ -16,11 +16,14 @@ while (!(Test-Path (Join-Path $ModuleRoot 'Readme.md')))
 }
 #endregion
 
+#region Load Modules
 $MicrosoftSqlDbDac = Join-Path $ModuleRoot '..\Microsoft.SqlDb.DAC.12' -Resolve
 Import-Module $MicrosoftSqlDbDac -Force 
 
 $SqlServerPatcherModule = Join-Path $ModuleRoot 'SqlServerPatcher'
 Import-Module $SqlServerPatcherModule -Force 
+
+#endregion
 
 [scriptblock] $PatchFileInitializationScript = {
     Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches 
