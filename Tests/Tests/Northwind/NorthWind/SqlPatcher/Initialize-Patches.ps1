@@ -3,9 +3,6 @@ param
 ( [string] $Environment = ''
 , [string] $ServerName = '.'
 , [string] $DatabaseName = 'NorthwindLocal'
-, [scriptblock] $PatchFileInitializationScript = {
-                    Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches 
-                }
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +21,10 @@ Import-Module $MicrosoftSqlDbDac -Force
 
 $SqlServerPatcherModule = Join-Path $ModuleRoot 'SqlServerPatcher'
 Import-Module $SqlServerPatcherModule -Force 
+
+[scriptblock] $PatchFileInitializationScript = {
+    Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches 
+}
 
 Initialize-SqlServerPatcher -ServerName $ServerName `
                             -DatabaseName $DatabaseName `
