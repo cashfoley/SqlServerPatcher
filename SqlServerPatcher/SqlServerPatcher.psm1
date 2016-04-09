@@ -518,14 +518,17 @@ Class PatchContext
 
     [void]PerformPatchFileInitializationScript()
     {
-        Push-Location $this.RootFolderPath
-        try
+        if ([string]$this.PatchFileInitializationScript -ne '')
         {
-            & $this.PatchFileInitializationScript
-        }
-        finally
-        {
-            Pop-Location
+            Push-Location $this.RootFolderPath
+            try
+            {
+                & $this.PatchFileInitializationScript
+            }
+            finally
+            {
+                Pop-Location
+            }
         }
     }
 
