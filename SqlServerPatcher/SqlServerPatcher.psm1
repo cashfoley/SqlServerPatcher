@@ -25,6 +25,10 @@ THE SOFTWARE.
 "@
 #endregion
 
+$SqlServerPatcherDacPacPath = Join-Path $PSScriptRoot 'SqlServerPatcherDacPac'
+Import-Module $SqlServerPatcherDacPacPath -Force
+
+
 
 ################################################################################################################
 ################################################################################################################
@@ -297,85 +301,6 @@ class TokenList
 ################################################################################################################
 ################################################################################################################
 ################################################################################################################
-class DacPacUtil
-{
-    [PatchContext]$PatchContext
-    [Microsoft.SqlServer.Dac.DacServices]$DacSvcs
-    [Microsoft.SqlServer.Dac.DacDeployOptions]$DacProfile
-
-    DacPacUtil($patchContext)
-    {
-        $this.PatchContext = $patchContext
-
-        $this.DacSvcs = new-object Microsoft.SqlServer.Dac.DacServices $this.PatchContext.Connection.ConnectionString
-        
-        $this.DacProfile =[Microsoft.SqlServer.Dac.DacDeployOptions]::new()
-        $this.DacProfile.BlockOnPossibleDataLoss = $false
-        $this.DacProfile.DropObjectsNotInSource = $true
-    }
-
-    [void] ExtractDacPac($TargetDacPacFile)
-    {
-        $this.DacSvcs.Extract($TargetDacPacFile, $this.PatchContext.Connection.Database, $this.PatchContext.Connection.Database, '0.0.0.0', 'Extracted DacPac', $null, $null, $null) 
-    }
-
-    [string] GenerateXmlDeployReport($TargetDacPacFile)
-    {
-        $DacPac = [Microsoft.SqlServer.Dac.DacPackage]::Load($TargetDacPacFile) 
-
-        return $this.DacSvcs.GenerateDeployReport($DacPac, $this.PatchContext.Connection.Database, $this.DacProfile, $null) 
-    }
-
-    [psobject[]] GetDeploymentActions($TargetDacPacFile)
-    {
-        $results = @()
-        [xml]$DeploymentDoc = ([xml]$this.GenerateXmlDeployReport($TargetDacPacFile))
-        foreach ($operation in $DeploymentDoc.DeploymentReport.Operations.Operation) 
-        {
-            $ActionName = $operation.Name
-            foreach ($operationItem in $operation.ChildNodes)
-            {
-                $ActionObject = $operationItem.Value
-                $ActionObjectType = $operationItem.Type
-                $Action = [PSCustomObject]@{Action=$ActionName; ObjectType=$ActionObjectType; ObjectName=$ActionObject}
-                $results += $Action
-            }
-        }
-        return $results
-    }
-}
-
-function Set-Dacpac
-{
-    param
-    (
-        [string] $DacpacFilename
-    )
-
-    $PatchContext.DacPacUtil.ExtractDacPac($DacpacFilename)
-}
-
-function Get-DacpacActions
-{
-    param
-    (
-        [string] $DacpacFilename
-      , [switch] $GetXmlReport
-    )
-
-    if ($GetXmlReport)
-    {
-        return $PatchContext.DacPacUtil.GenerateXmlDeployReport($DacpacFilename)
-    }
-    else
-    {
-        return $PatchContext.DacPacUtil.GetDeploymentActions($DacpacFilename)
-    } 
-}
-
-################################################################################################################
-################################################################################################################
-################################################################################################################
 
 Class PatchContext
 {
@@ -393,12 +318,6 @@ Class PatchContext
     [switch] $PublishWhatif = $false
     [string] $Environment = $null
     [scriptblock] $PatchFileInitializationScript
-
-    # Cannot declare a [DacPacUtil] type because it cannot be instanciated until
-    # the Microsoft.SqlServer.Dac.dll
-    # this initialization will load the dll before executing the Import-Module
-    # with the DacPacUtil class.
-    $DacPacUtil
 
     hidden [string] $QueriesRegexOptions = 'IgnorePatternWhitespace,Singleline,IgnoreCase,Multiline,Compiled'
     #hidden [string] $QueriesExpression = "((?'Query'(?:(?:/\*.*?\*/)|.)*?)(?:^\s*go\s*$))*(?'Query'.*)"
@@ -494,8 +413,6 @@ Class PatchContext
             mkdir $this.OutFolderPath | Out-Null
         }
         $this.OutFolderPath = Resolve-Path $this.OutFolderPath
-
-        $this.DacPacUtil = [DacPacUtil]::new($this)
     }
 
     # ----------------------------------------------------------------------------------
@@ -1241,7 +1158,7 @@ function Test-SqlServerRollback
         $DacpacName = 'PreTest.dacpac' 
         Write-Host "Create Pre-deploy DacPac '$DacpacName'"
         $PreDacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
-        Set-Dacpac -DacpacFilename $PreDacpacFile
+        Get-Dacpac -DacpacFilename $PreDacpacFile
     }
     process
     {
@@ -1267,7 +1184,7 @@ function Test-SqlServerRollback
             $DacpacName = 'Post-{0}.dacpac' -f $Patchinfo.PatchName.Replace('\','_')
             Write-Host "Create Post-deploy DacPac '$DacpacName'"
             $PostDacpacFile = Join-Path $QueuedPatches.PatchContext.OutFolderPath $DacpacName
-            Set-Dacpac -DacpacFilename $PostDacpacFile
+            Get-Dacpac -DacpacFilename $PostDacpacFile
 
             Write-Host 'Rollback patch'
             $ExecutedPatch = Get-SqlServerPatchHistory | Where-Object{$_.PatchName -eq $Patchinfo.PatchName}
@@ -1442,6 +1359,8 @@ function Initialize-SqlServerPatcher
 
     $PatchContext.PerformPatchFileInitializationScript()
 
+    Initialize-SqlServerPatcherDacPac -sqlserverVersion '2012' -Connection $PatchContext.Connection
+
     # AssureSqlServerPatcher
 }
 
@@ -1482,8 +1401,6 @@ Export-ModuleMember -Function Get-SqlServerPatcherDbObjects -Alias ShowDbObjects
 
 # ----------------------------------------------------------------------------------
 
-Export-ModuleMember -Function Set-Dacpac
-Export-ModuleMember -Function Get-DacpacActions
 Export-ModuleMember -Function TerminalError
 Export-ModuleMember -Function Add-SqlDbPatches
 Export-ModuleMember -Function Get-ExecutablePatches
