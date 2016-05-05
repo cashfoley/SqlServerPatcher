@@ -1314,6 +1314,9 @@ function Initialize-SqlServerPatcher
       [ValidateNotNull()]
       [ValidateNotNullOrEmpty()][string]$DatabaseName
 
+    , [Parameter(Mandatory=$true)]
+      [SqlDacMajorVersion]$SqlDacVersion
+
     #, [Parameter(Mandatory=$true,Position=0,ParameterSetName='Parameter Connection String')]
     #  [ValidateNotNull()]
     #  [ValidateNotNullOrEmpty()]
@@ -1359,7 +1362,7 @@ function Initialize-SqlServerPatcher
 
     $PatchContext.PerformPatchFileInitializationScript()
 
-    Initialize-SqlServerPatcherDacPac -sqlserverVersion '2012' -Connection $PatchContext.Connection
+    Initialize-SqlServerPatcherDacPac -sqlserverVersion $SqlDacVersion -Connection $PatchContext.Connection
 
     # AssureSqlServerPatcher
 }

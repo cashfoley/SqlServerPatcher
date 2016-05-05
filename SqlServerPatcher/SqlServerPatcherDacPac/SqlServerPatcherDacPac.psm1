@@ -3,31 +3,16 @@ $DacSvcs
 $DacProfile
 $Connection
 
-function Get-SqlServerMajoreVersion
-{
-     param
-     (
-         [string] $sqlServerVersion
-     )
+Add-Type -TypeDefinition  @"
+   // very simple enum type
+   public enum SqlDacMajorVersion
+   {
+      v2008R2=100,
+      v2012=110,
+      v2014=120
+   }
+"@
 
-    switch($sqlserverVersion)
-    {
-        '2008-R2'
-        {
-            $majorVersion = 100
-        }
-        '2012'
-        {
-            $majorVersion = 110
-        }
-        '2014'
-        {
-            $majorVersion = 120
-        }
-    }
-
-    return $majorVersion
-}
 function Initialize-SqlServerPatcherDacPac
 {
      param
@@ -35,7 +20,7 @@ function Initialize-SqlServerPatcherDacPac
         [Object] $Connection,
 
         [Parameter(Mandatory=$True,ParameterSetName='ByVersion')]
-        [String]$sqlserverVersion,
+        [SqlDacMajorVersion]$sqlserverVersion,
 
         [Parameter(Mandatory=$True,ParameterSetName='ByPath')]
         [String]$sqlServerDacDllPath
@@ -43,7 +28,7 @@ function Initialize-SqlServerPatcherDacPac
 
     if ($sqlserverVersion -ne '')
     {
-        $majorVersion = Get-SqlServerMajoreVersion -sqlServerVersion $sqlserverVersion
+        $majorVersion = ($sqlserverVersion -as [int])
         $sqlServerDacDllPath = "${env:ProgramFiles(x86)}\Microsoft SQL Server\$majorVersion\DAC\bin\Microsoft.SqlServer.Dac.dll"
     }
 

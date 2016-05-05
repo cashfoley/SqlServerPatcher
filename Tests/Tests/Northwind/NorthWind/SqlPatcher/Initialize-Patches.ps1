@@ -3,6 +3,7 @@ param
 ( [string] $Environment = ''
 , [string] $ServerName = '.'
 , [string] $DatabaseName = 'NorthwindLocal'
+, [SqlDacMajorVersion]$SqlDacVersion = 'v2012'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,5 +35,6 @@ Initialize-SqlServerPatcher -ServerName $ServerName `
                             -RootFolderPath (Join-Path $PSScriptRoot 'Patches') `
                             -OutFolderPath (Join-Path $PSScriptRoot '..\bin\TestOutput') `
                             -Environment $Environment `
-                            -PatchFileInitializationScript:$PatchFileInitializationScript
+                            -PatchFileInitializationScript:$PatchFileInitializationScript `
+                            -SqlDacVersion $SqlDacVersion
 
