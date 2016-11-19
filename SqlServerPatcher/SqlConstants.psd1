@@ -21,6 +21,7 @@ BEGIN
         [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
         [PatchName]         [nvarchar] (450) NOT NULL,
         [Applied]           [datetime] NOT NULL,
+        [Version]           [nvarchar] (100) NOT NULL,
 	    [ExecutedByForce]   [bit]      NOT NULL,
 	    [UpdatedOnChange]   [bit]      NOT NULL,
 	    [IsRollback]        [bit]      NOT NULL,
@@ -44,6 +45,7 @@ BEGIN
 EXEC dbo.sp_executesql @statement = N'
 	CREATE PROCEDURE #InsertFilePatch     
         @PatchName [nvarchar](450),
+        @Version [nvarchar](100),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
 		@ExecutedByForce [bit],
@@ -56,6 +58,7 @@ EXEC dbo.sp_executesql @statement = N'
             INTO [SqlServerPatcher].[FilePatches]
                 ( [PatchName]
                 , [Applied]
+                , [Version]
                 , [CheckSum]
                 , [PatchScript]
 				, [ExecutedByForce]
@@ -63,6 +66,7 @@ EXEC dbo.sp_executesql @statement = N'
                 )
          VALUES ( @PatchName
                 , GetDate()
+                , @Version
                 , @CheckSum
                 , @PatchScript
 				, @ExecutedByForce
@@ -83,6 +87,7 @@ BEGIN
     SELECT [OID]
          , [PatchName]
          , [Applied]
+         , [Version]
          , [ExecutedByForce]
          , [UpdatedOnChange]
          , [IsRollback]
@@ -126,7 +131,7 @@ SELECT COUNT(OID)
 
 ############################################################################################################################
 
-    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}'"
+    InsertFilePatchSQL = "EXEC #InsertFilePatch N'{0}',N'{1}',N'{2}',N'{3}',N'{4}',N'{5}'"
 
 ############################################################################################################################
     
@@ -137,6 +142,7 @@ INSERT
   INTO [SqlServerPatcher].[FilePatches]
      ( [PatchName]
      , [Applied]
+     , [Version]
      , [IsRollback]
      , [RollbackedByOID]
      , [PatchScript]
@@ -144,6 +150,7 @@ INSERT
 	 )
 SELECT [PatchName]
      , GetDate()
+     , [Version]
      , ~(IsRollback)
      , NULL
      , N'{1}'
@@ -164,6 +171,7 @@ COMMIT TRANSACTION;
     SELECT [OID]
          , [PatchName]
          , [Applied]
+         , [Version]
          , [ExecutedByForce]
          , [UpdatedOnChange]
          , [IsRollback]

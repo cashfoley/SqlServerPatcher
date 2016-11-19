@@ -30,11 +30,15 @@ Import-Module $SqlServerPatcherModule -Force
     Get-ChildItem -recurse -Filter *.sql | Add-SqlDbPatches 
 }
 
-Initialize-SqlServerPatcher -ServerName $ServerName `
-                            -DatabaseName $DatabaseName `
-                            -RootFolderPath (Join-Path $PSScriptRoot 'Patches') `
-                            -OutFolderPath (Join-Path $PSScriptRoot '..\bin\TestOutput') `
-                            -Environment $Environment `
-                            -PatchFileInitializationScript:$PatchFileInitializationScript `
-                            -SqlDacVersion $SqlDacVersion
+$SqlServerPatcherParms = @{
+    ServerName = $ServerName 
+    DatabaseName = $DatabaseName 
+    RootFolderPath = (Join-Path $PSScriptRoot 'Patches') 
+    OutFolderPath = (Join-Path $PSScriptRoot '..\bin\TestOutput') 
+    Environment = $Environment 
+    SqlDacVersion = $SqlDacVersion 
+    Version = '1.0.1'
+}
+
+Initialize-SqlServerPatcher @SqlServerPatcherParms -PatchFileInitializationScript:$PatchFileInitializationScript 
 

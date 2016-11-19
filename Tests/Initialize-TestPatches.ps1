@@ -22,5 +22,7 @@ Initialize-SqlServerPatcher -ServerName $TestSqlServer `
                             -OutFolderPath $outFolderPath `
                             -Environment $Environment `
                             -Checkpoint:$Checkpoint `
-                            -PatchFileInitializationScript:$PatchFileInitializationScript
+                            -PatchFileInitializationScript:$PatchFileInitializationScript `
+                            -SqlDacVersion v2012 `
+                            -Version 'xx01xx'
 

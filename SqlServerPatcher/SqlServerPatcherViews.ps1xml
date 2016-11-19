@@ -24,6 +24,9 @@
             <Width>25</Width>
           </TableColumnHeader>
           <TableColumnHeader>
+            <Width>10</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
             <!--<Width>50</Width>-->
           </TableColumnHeader>
           <TableColumnHeader>
@@ -44,6 +47,9 @@
               </TableColumnItem>
               <TableColumnItem>
                 <PropertyName>Applied</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Version</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
                 <PropertyName>PatchName</PropertyName>

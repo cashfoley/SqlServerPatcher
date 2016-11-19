@@ -93,7 +93,7 @@ class PatchInfo
     {
         $PatchScript = ($this.GoScript($this.PatchContext.SqlConstants.BeginTransctionScript)) + 
                        ($this.GoScript($this.PatchContent)) + 
-                       ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.Checksum, $this.PatchContent, $this.RollbackContent,''))) +
+                       ($this.GoScript($this.PatchContext.GetInsertFilePatchString($this.PatchName, $this.PatchContext.Version, $this.Checksum, $this.PatchContent, $this.RollbackContent,''))) +
                        ($this.GoScript($this.PatchContext.SqlConstants.EndTransactionScript))
         
         return $PatchScript
@@ -195,6 +195,7 @@ class ExecutedPatch
     [int]      $OID
     [string]   $PatchName
     [datetime] $Applied
+    [string]   $Version
     [string]   $RollbackStatus
     [bool]     $ExecutedByForce
     [bool]     $UpdatedOnChange
@@ -211,6 +212,7 @@ class ExecutedPatch
         , [int]           $OID
         , [string]        $PatchName
         , [datetime]      $Applied
+        , [string]        $Version
         , [bool]          $ExecutedByForce
         , [bool]          $UpdatedOnChange
         , [bool]          $IsRollback
@@ -224,6 +226,7 @@ class ExecutedPatch
         $this.OID               = $OID
         $this.PatchName         = $PatchName
         $this.Applied           = $Applied
+        $this.Version           = $Version
         $this.ExecutedByForce   = $ExecutedByForce
         $this.UpdatedOnChange   = $UpdatedOnChange
         $this.IsRollback        = $IsRollback
@@ -348,6 +351,7 @@ Class PatchContext
 
     [string] $DBServerName
     [string] $DatabaseName
+    [string] $Version
     [int]    $DefaultCommandTimeout
     [string] $RootFolderPath
     [bool]   $Checkpoint
@@ -359,6 +363,7 @@ Class PatchContext
     PatchContext( 
           [string] $DBServerName
         , [string] $DatabaseName
+        , [string] $Version
         , [string] $RootFolderPath
         , [string] $OutFolderPathParm
         , [string] $EnvironmentParm
@@ -379,6 +384,7 @@ Class PatchContext
 
         $this.DBServerName = $DBServerName
         $this.DatabaseName = $DatabaseName
+        $this.Version      = $Version
         $this.DefaultCommandTimeout = 180
         
         if (!(Test-Path $RootFolderPath -PathType Container))
@@ -577,6 +583,7 @@ Class PatchContext
             , [int]           $FilePatchHash.OID
             , [string]        $FilePatchHash.PatchName
             , [datetime]      $FilePatchHash.Applied
+            , [string]        $FilePatchHash.Version
             , [bool]          ($FilePatchHash.ExecutedByForce -eq $true)
             , [bool]          ($FilePatchHash.UpdatedOnChange -eq $true)
             , [bool]          ($FilePatchHash.IsRollback      -eq $true)
@@ -685,15 +692,15 @@ Class PatchContext
     }
 
     # ----------------------------------------------------------------------------------
-    [string] GetInsertFilePatchString($PatchName, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
+    [string] GetInsertFilePatchString($PatchName, $Version, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
     {
-        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
+        return $this.SqlConstants.InsertFilePatchSQL -f $PatchName.Replace("'","''"),$Version.Replace("'","''"),$Checksum.Replace("'","''"),$Content.Replace("'","''"),'0','0'
     }
 
     # ----------------------------------------------------------------------------------
-    [void] InsertFilePatch($PatchName, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
+    [void] InsertFilePatch($PatchName, $Version, $Checksum, $Content,$RollbackScript,$RollbackChecksum)
     {
-        $this.ExecuteNonQuery($this.GetInsertFilePatchString($PatchName,$Checksum, $Content,$RollbackScript,$RollbackChecksum))
+        $this.ExecuteNonQuery($this.GetInsertFilePatchString($PatchName, $Version, $Checksum, $Content,$RollbackScript,$RollbackChecksum))
     }
 
     # ----------------------------------------------------------------------------------
@@ -724,7 +731,7 @@ Class PatchContext
 ################################################################################################################
 
 [CmdletBinding(
-    SupportsShouldProcess=$True,ConfirmImpact=’Medium’
+    SupportsShouldProcess=$True,ConfirmImpact='Medium'
 )]
 class QueuedPatches : System.Collections.ArrayList {
 
@@ -813,7 +820,7 @@ class QueuedPatches : System.Collections.ArrayList {
                         #if ($PSCmdlet.ShouldProcess($PatchInfo.PatchName,'Checkpoint Patch')) 
                         #{
                             Write-Host "Checkpoint (mark as executed) - $($PatchInfo.PatchName)"
-                            $this.PatchContext.InsertFilePatch($PatchInfo.PatchName, $PatchInfo.Checksum, '', '', '')
+                            $this.PatchContext.InsertFilePatch($PatchInfo.PatchName, $PatchInfo.PatchContext.Version, $PatchInfo.Checksum, '', '', '')
                             $PatchInfo.Executed = $True
                         #}
                     }
@@ -901,7 +908,7 @@ function TerminalError($Exception,$OptionalMsg)
 function Add-SqlDbPatches
 {
     [CmdletBinding(
-        SupportsShouldProcess=$True,ConfirmImpact=’Medium’
+        SupportsShouldProcess=$True,ConfirmImpact='Medium'
     )]
  
     PARAM
@@ -993,7 +1000,7 @@ function Get-SqlServerPatchHistory
     }
 
     $ExecutedPatches = [System.Collections.ArrayList]::new()
-    [void] ($QueuedPatches.PatchContext.GetExecutedPatches($QueuedPatches) | %{$ExecutedPatches.Add($_)})
+    [void] ($QueuedPatches.PatchContext.GetExecutedPatches($QueuedPatches) | ForEach-Object{$ExecutedPatches.Add($_)})
 
     if (!$ShowRollbacks)
     {
@@ -1067,11 +1074,11 @@ function Undo-SqlServerPatches
 
     if ($RollbackRollback)
     {
-        [void] (Get-SqlServerPatchHistory -ShowRollbacks | Where-Object{$_.IsRollback} | %{$ExecutedPatches.Add($_)})
+        [void] (Get-SqlServerPatchHistory -ShowRollbacks | Where-Object{$_.IsRollback} | ForEach-Object{$ExecutedPatches.Add($_)})
     }
     else
     {
-        [void] (Get-SqlServerPatchHistory | %{$ExecutedPatches.Add($_)})
+        [void] (Get-SqlServerPatchHistory | ForEach-Object{$ExecutedPatches.Add($_)})
     }
 
     $ExecutedPatches.Reverse()
@@ -1317,6 +1324,9 @@ function Initialize-SqlServerPatcher
     , [Parameter(Mandatory=$true)]
       [SqlDacMajorVersion]$SqlDacVersion
 
+    , [Parameter(Mandatory=$true)]
+      [string]$Version
+
     #, [Parameter(Mandatory=$true,Position=0,ParameterSetName='Parameter Connection String')]
     #  [ValidateNotNull()]
     #  [ValidateNotNullOrEmpty()]
@@ -1324,6 +1334,7 @@ function Initialize-SqlServerPatcher
 
     , [string]$RootFolderPath
     , [string]$Environment
+
     , [string]$OutFolderPath = (Join-Path -Path $RootFolderPath -ChildPath 'OutFolder')
     , [scriptblock]$PatchFileInitializationScript
     , [string]$SqlLogFile = $null
@@ -1349,7 +1360,7 @@ function Initialize-SqlServerPatcher
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$Checkpoint)
+    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$Version,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$Checkpoint)
     
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
@@ -1404,7 +1415,7 @@ Export-ModuleMember -Function Get-SqlServerPatcherDbObjects -Alias ShowDbObjects
 
 # ----------------------------------------------------------------------------------
 
-Export-ModuleMember -Function TerminalError
+#Export-ModuleMember -Function TerminalError
 Export-ModuleMember -Function Add-SqlDbPatches
 Export-ModuleMember -Function Get-ExecutablePatches
 Export-ModuleMember -Function Add-TokenReplacemen
