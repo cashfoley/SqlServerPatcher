@@ -1,5 +1,5 @@
 Set-Location $PSScriptRoot
-break;
+
 
 .\Initialize-LocalDatabase.ps1 -DatabaseName NorthwindLocal
 .\Initialize-LocalDatabase.ps1 -DatabaseName NorthwindDev

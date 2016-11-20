@@ -1043,10 +1043,12 @@ function Get-SqlServerPatchInfo
 
 function Undo-SqlServerPatches
 {
-    param( [int] $OID
+    param( [int] $OID = -1
          , [switch] $Force
          , [switch] $OnlyOne
          , [switch] $RollbackRollback
+         , [string] $Release
+         , [string] $ToRelease
          )
 
     function ValidateHasRollback($ExecutedPatch,[REF]$RollbackPatches,[REF]$WarningsDetected)
@@ -1082,6 +1084,40 @@ function Undo-SqlServerPatches
     }
 
     $ExecutedPatches.Reverse()
+
+    if ($Release.Length -gt 0)
+    {
+        Write-Output "Rollback '$Release'"
+        foreach ($patch in $ExecutedPatches)
+        {
+            if ($Release -eq $patch.Release)
+            {
+                $OID = $patch.OID
+            }
+        }
+    }
+    elseif ($ToRelease.Length -gt 0)
+    {
+        Write-Output "Rollback to '$ToRelease'"
+        $ReleaseFound = $false
+        foreach ($patch in $ExecutedPatches)
+        {
+            if ($ToRelease -eq $patch.Release)
+            {
+                $ReleaseFound = $True
+                break
+            }
+            $OID = $patch.OID
+        }
+        if (!$ReleaseFound)
+        {
+            Throw "Release '$ToRelease' not found"
+        }
+        if ($OID -eq -1)
+        {
+            return
+        }
+    }
 
     if ($OID -gt $ExecutedPatches[0].OID)
     {

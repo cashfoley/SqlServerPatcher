@@ -3,7 +3,8 @@ param
 ( [string] $Environment = ''
 , [string] $ServerName = '.'
 , [string] $DatabaseName = 'NorthwindLocal'
-, [SqlDacMajorVersion]$SqlDacVersion = 'v2012'
+, $SqlDacVersion = 'v2012'
+, [string] $Release = '1.0.0'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,7 +38,7 @@ $SqlServerPatcherParms = @{
     OutFolderPath = (Join-Path $PSScriptRoot '..\bin\TestOutput') 
     Environment = $Environment 
     SqlDacVersion = $SqlDacVersion 
-    Release = '1.0.1'
+    Release = $Release
     PatchFileInitializationScript = $PatchFileInitializationScript
 }
 
