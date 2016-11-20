@@ -37,8 +37,9 @@ $SqlServerPatcherParms = @{
     OutFolderPath = (Join-Path $PSScriptRoot '..\bin\TestOutput') 
     Environment = $Environment 
     SqlDacVersion = $SqlDacVersion 
-    Version = '1.0.1'
+    Release = '1.0.1'
+    PatchFileInitializationScript = $PatchFileInitializationScript
 }
 
-Initialize-SqlServerPatcher @SqlServerPatcherParms -PatchFileInitializationScript:$PatchFileInitializationScript 
+Initialize-SqlServerPatcher @SqlServerPatcherParms 
 

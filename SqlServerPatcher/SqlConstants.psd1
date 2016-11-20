@@ -21,7 +21,7 @@ BEGIN
         [OID]               [bigint]   IDENTITY(1,1) NOT NULL,
         [PatchName]         [nvarchar] (450) NOT NULL,
         [Applied]           [datetime] NOT NULL,
-        [Version]           [nvarchar] (100) NOT NULL,
+        [Release]           [nvarchar] (100) NOT NULL,
 	    [ExecutedByForce]   [bit]      NOT NULL,
 	    [UpdatedOnChange]   [bit]      NOT NULL,
 	    [IsRollback]        [bit]      NOT NULL,
@@ -45,7 +45,7 @@ BEGIN
 EXEC dbo.sp_executesql @statement = N'
 	CREATE PROCEDURE #InsertFilePatch     
         @PatchName [nvarchar](450),
-        @Version [nvarchar](100),
+        @Release [nvarchar](100),
         @CheckSum [nvarchar](100),
         @PatchScript  [nvarchar](MAX),
 		@ExecutedByForce [bit],
@@ -58,7 +58,7 @@ EXEC dbo.sp_executesql @statement = N'
             INTO [SqlServerPatcher].[FilePatches]
                 ( [PatchName]
                 , [Applied]
-                , [Version]
+                , [Release]
                 , [CheckSum]
                 , [PatchScript]
 				, [ExecutedByForce]
@@ -66,7 +66,7 @@ EXEC dbo.sp_executesql @statement = N'
                 )
          VALUES ( @PatchName
                 , GetDate()
-                , @Version
+                , @Release
                 , @CheckSum
                 , @PatchScript
 				, @ExecutedByForce
@@ -87,7 +87,7 @@ BEGIN
     SELECT [OID]
          , [PatchName]
          , [Applied]
-         , [Version]
+         , [Release]
          , [ExecutedByForce]
          , [UpdatedOnChange]
          , [IsRollback]
@@ -142,7 +142,7 @@ INSERT
   INTO [SqlServerPatcher].[FilePatches]
      ( [PatchName]
      , [Applied]
-     , [Version]
+     , [Release]
      , [IsRollback]
      , [RollbackedByOID]
      , [PatchScript]
@@ -150,7 +150,7 @@ INSERT
 	 )
 SELECT [PatchName]
      , GetDate()
-     , [Version]
+     , [Release]
      , ~(IsRollback)
      , NULL
      , N'{1}'
@@ -171,7 +171,7 @@ COMMIT TRANSACTION;
     SELECT [OID]
          , [PatchName]
          , [Applied]
-         , [Version]
+         , [Release]
          , [ExecutedByForce]
          , [UpdatedOnChange]
          , [IsRollback]

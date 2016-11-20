@@ -49,7 +49,7 @@
                 <PropertyName>Applied</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
-                <PropertyName>Version</PropertyName>
+                <PropertyName>Release</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
                 <PropertyName>PatchName</PropertyName>
