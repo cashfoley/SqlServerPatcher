@@ -1,0 +1,8 @@
+<dbo.Categories CategoryID="1" CategoryName="Beverages" Description="Soft drinks, coffees, teas, beers, and ales" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''1'']/@Picture" />
+<dbo.Categories CategoryID="2" CategoryName="Condiments" Description="Sweet and savory sauces, relishes, spreads, and seasonings" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''2'']/@Picture" />
+<dbo.Categories CategoryID="3" CategoryName="Confections" Description="Desserts, candies, and sweet breads" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''3'']/@Picture" />
+<dbo.Categories CategoryID="4" CategoryName="Dairy Products" Description="Cheeses" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''4'']/@Picture" />
+<dbo.Categories CategoryID="5" CategoryName="Grains/Cereals" Description="Breads, crackers, pasta, and cereal" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''5'']/@Picture" />
+<dbo.Categories CategoryID="6" CategoryName="Meat/Poultry" Description="Prepared meats" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''6'']/@Picture" />
+<dbo.Categories CategoryID="7" CategoryName="Produce" Description="Dried fruit and bean curd" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''7'']/@Picture" />
+<dbo.Categories CategoryID="8" CategoryName="Seafood" Description="Seaweed and fish" Picture="dbobject/northwind.dbo.Categories[@CategoryID=''8'']/@Picture" />

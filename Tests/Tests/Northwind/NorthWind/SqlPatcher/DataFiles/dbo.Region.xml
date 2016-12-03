@@ -1,0 +1,4 @@
+<dbo.Region RegionID="1" RegionDescription="Eastern                                           " />
+<dbo.Region RegionID="2" RegionDescription="Western                                           " />
+<dbo.Region RegionID="3" RegionDescription="Northern                                          " />
+<dbo.Region RegionID="4" RegionDescription="Southern                                          " />

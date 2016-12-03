@@ -167,3 +167,4 @@ AppPackages/
 *.ldf
 
 TestOutput
+/Tests/Tests/Northwind/NorthWind/SqlPatcher/Output/

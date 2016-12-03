@@ -28,6 +28,9 @@ THE SOFTWARE.
 $SqlServerPatcherDacPacPath = Join-Path $PSScriptRoot 'SqlServerPatcherDacPac'
 Import-Module $SqlServerPatcherDacPacPath -Force
 
+$XmlLoaderPath = Join-Path $PSScriptRoot 'XmlLoader.psm1'
+Import-Module $XmlLoaderPath -Force
+
 
 
 ################################################################################################################
@@ -1413,6 +1416,14 @@ function Initialize-SqlServerPatcher
 
     # AssureSqlServerPatcher
 }
+
+# ----------------------------------------------------------------------------------
+function get-SqlServerPatcherConnection
+{
+    $PatchContext.Connection
+}
+
+Export-ModuleMember get-SqlServerPatcherConnection
 
 # ----------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------
