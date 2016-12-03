@@ -148,61 +148,40 @@ function Get-XmlDeleteAndInsert($command, $xmlDataInfo,[switch]$IncludTimestamps
 
 }
 
-class DbObjectName
+class XmlDataFile
 {
     # private 
-    hidden [int]$IncrementFactor
+    #hidden [int]$aVar
+    
     # public Property
-    [int]$Index
 
-    [string]$schema
-    [string]$object
-    [string]$filename
-    [string]$fullFileName
+    [string]$Schema
+    [string]$TableName
+
+    [string]$Filename
+    [string]$FullFilename
+    [string]$TableFullName
    
     # Constructor
-    NewClass([System.IO.FileInfo]$fileInfo)
+    XmlDataFile([System.IO.FileInfo]$fileInfo)
     {
-        $this.filename= $fileInfo.Name
-        $this.fullname= $fileInfo.FullName
+        $this.Filename= $fileInfo.Name
+        $this.FullFilename = $fileInfo.FullName
 
-        if (!($this.filename -match "^((?'schema'[^.]*)\.)?(?'object'[^.]*)\.xml$"))
+        if (!($this.Filename -match "^((?'schema'[^.]*)\.)?(?'TableName'[^.]*)\.xml$"))
         {
-            Throw "Filename '$($this.filename)' is not in the form of '(<schema>.)<object>.xml'"
+            Throw "Filename '$($this.Filename)' is not in the form of '(<schema>.)<TableName>.xml'"
         }
-        $this.schema= $Matches['schema']
-        $this.object= $Matches['object']
+        $this.Schema= $Matches['schema']
+        $this.TableName= $Matches['TableName']
+        $this.TableFullName = "[{0}].[{1}]" -f $this.Schema, $this.TableName
     }
-   
-#     # Method
-#     [void] Increment() {
-#     $this.Index += $this.IncrementFactor
-#     }
-#       
-#     [void] SetIncrementFactor([int]$NewFactor)
-#     {
-#     $this.IncrementFactor = $NewFactor
-#     }
-#       
-#     [int] GetIncrementFactor()
-#     {
-#     return $this.IncrementFactor
-#     }
+
+    [string] FileContent()
+    {
+        return (Get-Content $this.FullFilename | Out-String | %{$_.Replace("'","''")}).trim()
+    }
 }
-
-# instantiate class
-$myClass = [NewClass]::new()
-
-# use properties and methods
-$myClass.Index
-$myClass.Increment()
-$myClass.Index
-
-$myClass.SetIncrementFactor(15)
-$myClass.GetIncrementFactor()
-$myClass.Index
-$myClass.Increment()
-$myClass.Index
 
 
 # ----------------------------------------------------------------------------------------------
@@ -213,11 +192,11 @@ function Get-XmlInsertSql($command, $XmlDataFiles,[switch]$IncludTimestamps)
     "PRINT N'################################################################################'`n"
     foreach ($XmlDataFile in $XmlDataFiles)
     {
-        $XmlDataInfo = parse-schemaname $XmlDataFile
-        $TableFullName = "[{0}].[{1}]" -f $XmlDataInfo.schema,$XmlDataInfo.object
+        $xmlDataFile = [XmlDataFile]::new($XmlDataFile)
+
         $ColumnNames = @()
         $ColumnDataTypes = @()
-        $command.CommandText = $TableDefinitionSQL -f $XmlDataInfo.schema,$XmlDataInfo.object
+        $command.CommandText = $TableDefinitionSQL -f $xmlDataFile.Schema,$xmlDataFile.TableName
         $sqlReader = $command.ExecuteReader()
         try
         {
@@ -253,29 +232,28 @@ function Get-XmlInsertSql($command, $XmlDataFiles,[switch]$IncludTimestamps)
             $sqlReader.Close()
         }
         "------------------------------------------------------------------------------`n"
-        "--   Load [{0}].[{1}]`n" -f $XmlDataInfo.schema,$XmlDataInfo.object
+        "--   Load [{0}].[{1}]`n" -f $xmlDataFile.Schema,$xmlDataFile.TableName
         "------------------------------------------------------------------------------`n"
                 
-        "PRINT N'DELETE all rows FROM $TableFullName'"
-        "DELETE FROM $TableFullName`n"
+        "PRINT N'DELETE all rows FROM $($xmlDataFile.TableFullName)'"
+        "DELETE FROM $($xmlDataFile.TableFullName)`n"
 
-        $xmlData = Get-Content $XmlDataInfo.fullname | Out-String | %{$_.Replace("'","''")}
-        $LoadXmlDocumentSQL -f $xmlData.trim()
+        $LoadXmlDocumentSQL -f $xmlDataFile.FileContent()
 
-        $command.CommandText = $TableHasIdentity -f $XmlDataInfo.schema,$XmlDataInfo.object
+        $command.CommandText = $TableHasIdentity -f $xmlDataFile.Schema,$xmlDataFile.TableName
         $HasIdentity = $command.ExecuteScalar()
         if ($HasIdentity -gt 0)
         {
-            "SET IDENTITY_INSERT $TableFullName ON`n"
+            "SET IDENTITY_INSERT $($xmlDataFile.TableFullName) ON`n"
         }
 
         $InsertColumnNames = $ColumnNames -join "`n     , "
         $InsertColumnDefs  = $ColumnDataTypes -join "`n     , "
-        $InsertXmlDataSQL -f $XmlDataInfo.schema, $XmlDataInfo.object, $InsertColumnNames, $InsertColumnDefs
+        $InsertXmlDataSQL -f $xmlDataFile.Schema, $xmlDataFile.TableName, $InsertColumnNames, $InsertColumnDefs
 
         if ($HasIdentity -gt 0)
         {
-            "SET IDENTITY_INSERT $TableFullName OFF"
+            "SET IDENTITY_INSERT $($xmlDataFile.TableFullName) OFF"
         }
         "PRINT N'---------------------------------------------'"
         "GO`n"
