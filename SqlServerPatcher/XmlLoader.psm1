@@ -77,76 +77,7 @@ EXEC sp_xml_removedocument @DocHandle
 
 #endregion
 
-#region Data Load Functions
 # ----------------------------------------------------------------------------------------------
-# Generates SQL to Disable or Enable FKs to all XmlDataInfos
-function Get-FKSql($command, $XmlDataFiles, [switch]$Disable)
-{
-    if ($Disable)
-    {
-        $CheckStr = "NOCHECK"
-        $ActionMessages = "Disable","for"
-    }
-    else
-    {
-        $CheckStr = "WITH CHECK CHECK"
-        $ActionMessages = "Enable","After"
-    }
-
-    "PRINT N'################################################################################'"
-    "PRINT N'   $($ActionMessages[0]) FK Constraints $($ActionMessages[1]) Datatable Load'"
-    "PRINT N'################################################################################'`n"
-    foreach ($XmlDataFile in $XmlDataFiles)
-    {
-        $XmlDataInfo = parse-schemaname $XmlDataFile
-        $command.CommandText = $FksToTableQuery -f $XmlDataInfo.schema,$XmlDataInfo.object
-        "PRINT N'------------------------------------------------'"
-        "`nPRINT N'$($ActionMessages[0]) FKs to {0}.{1}'" -f $XmlDataInfo.schema,$XmlDataInfo.object
-        $sqlReader = $command.ExecuteReader()
-        try
-        {
-            while ($sqlReader.Read()) 
-            { 
-                $TargetTableSchema = $sqlReader["Table_Schema"]
-                $TargetTableName = $sqlReader["Table_Name"]
-                $TargetTableConstraintName = $sqlReader["Constraint_Name"]
-		        "PRINT N'{3} FK {2} on {0}.{1}'" -f $TargetTableSchema,$TargetTableName,$TargetTableConstraintName, $($ActionMessages[0])
-
-		        "ALTER TABLE {0}.{1} {3} CONSTRAINT {2}`nGO`n" -f $TargetTableSchema,$TargetTableName,$TargetTableConstraintName, $CheckStr
-            }
-        }
-        finally
-        {
-            $sqlReader.Close()
-        }
-    }
-}
-
-Export-ModuleMember -Function Get-FKSql
-
-# ----------------------------------------------------------------------------------------------
-
-function parse-schemaname
-{
-    param ([System.IO.FileInfo]$fileInfo)
-
-    $filename = $fileInfo.Name
-
-    if ($filename -match "^((?'schema'[^.]*)\.)?(?'object'[^.]*)\.xml$")
-    {
-        @{schema= $Matches['schema'];object=$Matches['object'];filename=$filename;fullname=$fileInfo.FullName}
-    }
-    else
-    {
-        Throw "Filename '$filename' is not in the form of '(<schema>.)<object>.xml'"
-    }
-}
-
-
-function Get-XmlDeleteAndInsert($command, $xmlDataInfo,[switch]$IncludTimestamps)
-{
-
-}
 
 class XmlDataFile
 {
@@ -183,10 +114,102 @@ class XmlDataFile
     }
 }
 
+class FksToTable
+{
+
+    hidden [string] $AlterFkStr = @"
+PRINT N'{4} FK {2} on {0}.{1}'
+ALTER TABLE {0}.{1} {3} CONSTRAINT {2}
+GO
+
+"@
+
+    hidden [string] $BannerMsgStr =@"
+------------------------------------------------------------------------------------------------------
+--  {0} FK Constraints to {1}
+------------------------------------------------------------------------------------------------------
+
+"@
+
+    [XmlDataFile]$XmlDataFile
+    [array]$ForeignKeys
+    # Constructor
+    FksToTable([System.Data.Common.DbConnection]$Connection,[XmlDataFile]$XmlDataFile,$FksToTableQuery)
+    {
+        [System.Data.SqlClient.sqlCommand]$command = New-Object System.Data.SqlClient.sqlCommand
+        $command.Connection = $Connection 
+        $command.CommandText = $FksToTableQuery -f $xmlDataFile.Schema,$xmlDataFile.TableName
+
+        $this.xmlDataFile = $xmlDataFile
+
+        $sqlReader = $command.ExecuteReader()
+        $this.ForeignKeys = @()
+        try
+        {
+            while ($sqlReader.Read()) 
+            { 
+                $this.ForeignKeys += @{ Schema = $sqlReader["Table_Schema"]
+                                        TableName = $sqlReader["Table_Name"]
+                                        ConstraintName = $sqlReader["Constraint_Name"]
+                                      }
+            }
+        }
+        finally
+        {
+            $sqlReader.Close()
+        }
+    }
+    
+    hidden [string] GenerateFKs($ActionStr,$CheckString)
+    {
+        $result = @()
+        $result = $this.BannerMsgStr -f $ActionStr, $this.XmlDataFile.TableFullName
+        foreach ($fk in $this.ForeignKeys)
+        {
+            $result += $this.AlterFkStr -f $fk.Schema, $fk.TableName, $fk.ConstraintName, $CheckString, $ActionStr
+        }
+        return $result
+    }
+
+    [string] GetEnableFKsSql()
+    {
+        return $this.GenerateFKs('Enable','WITH CHECK CHECK')
+    }
+    [string] GetDisableFKsSql()
+    {
+        return $this.GenerateFKs('Disable','NOCHECK')
+    }
+}
 
 # ----------------------------------------------------------------------------------------------
-function Get-XmlInsertSql($command, $XmlDataFiles,[switch]$IncludTimestamps)
+
+#region Data Load Functions
+# ----------------------------------------------------------------------------------------------
+# Generates SQL to Disable or Enable FKs to all XmlDataInfos
+function Get-FKSql($connection, $XmlDataFiles, [switch]$Disable)
 {
+    foreach ($XmlDataFile in $XmlDataFiles)
+    {
+        $FksToTable = [FksToTable]::new($connection,$XmlDataFile,$FksToTableQuery)
+        if ($Disable)
+        {
+            $FksToTable.GetDisableFKsSql()
+        }
+        else
+        {
+            $FksToTable.GetEnableFKsSql()
+        }
+    }
+}
+
+Export-ModuleMember -Function Get-FKSql
+
+# ----------------------------------------------------------------------------------------------
+function Get-XmlInsertSql($connection, $XmlDataFiles,[switch]$IncludTimestamps)
+{
+    $command = New-Object System.Data.SqlClient.sqlCommand
+    $command.Connection = $connection 
+
     "PRINT N'################################################################################'"
     "PRINT N'   Table Data Load'"
     "PRINT N'################################################################################'`n"
@@ -232,7 +255,7 @@ function Get-XmlInsertSql($command, $XmlDataFiles,[switch]$IncludTimestamps)
             $sqlReader.Close()
         }
         "------------------------------------------------------------------------------`n"
-        "--   Load [{0}].[{1}]`n" -f $xmlDataFile.Schema,$xmlDataFile.TableName
+        "--   Load $($xmlDataFile.TableFullName)`n" 
         "------------------------------------------------------------------------------`n"
                 
         "PRINT N'DELETE all rows FROM $($xmlDataFile.TableFullName)'"

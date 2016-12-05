@@ -77,8 +77,11 @@ PRINT N'(Delete ' + CAST(@DeleteCnt as VARCHAR) + N' row(s) affected)'
 PRINT N'(Insert ' + CAST(@InsertCnt as VARCHAR) + N' row(s) affected)'
 PRINT N'(Update ' + CAST(@UpdateCnt as VARCHAR) + N' row(s) affected)'
 
+SELECT * FROM [dbo].[Categories]
 
 ROLLBACK TRAN;
+
+SELECT * FROM [dbo].[Categories]
 
 EXEC sp_xml_removedocument @DocHandle
 

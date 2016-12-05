@@ -1,39 +1,12 @@
+$TargetDatabaseName = 'NorthwindLocal'
+$TargetServerName = '.'
+$OutputFile = 'C:\temp\TestDataLoad.sql'
+
 Set-Location $PSScriptRoot
-
-<#
-
-.\Initialize-LocalDatabase.ps1 -DatabaseName NorthwindLocal
-
-.\Initialize-Patches.ps1 -DatabaseName NorthwindLocal -Release '1.0.0'
-
-Get-SqlServerPatchInfo
-# ShowPatchInfo is alias
-
-Publish-SqlServerPatches 
-# PublishPatches
-
-Get-SqlServerPatchHistory 
-# ShowPatchHistory
-
-ShowDbObjects
-#>
 
 Import-Module C:\Git\SqlServerPatcher\SqlServerPatcher\XmlLoader.psm1 -Force
 
-$connection = get-SqlServerPatcherConnection
-
-$DataLoadFiles = Get-ChildItem -Path ".\DataFiles" 
-
-
-#$command = $connection.CreateCommand()
-$command = New-Object System.Data.SqlClient.sqlCommand
-$command.Connection = $connection 
-
-$testFile = 'C:\temp\TestDataLoad.sql'
-
-$output = @()
-
-$output +=  @"
+$BeginTransaction =  @"
 SET XACT_ABORT ON
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 SET ANSI_NULLS, ANSI_PADDING, ANSI_WARNINGS, ARITHABORT, CONCAT_NULL_YIELDS_NULL, QUOTED_IDENTIFIER ON;
@@ -45,11 +18,7 @@ GO
 
 "@
 
-$output += Get-FKSql -command $command -XmlDataFiles $DataLoadFiles -Disable
-$output += get-XmlInsertSql -command $command -XmlDataFiles $DataLoadFiles -IncludTimestamps
-$output += Get-FKSql -command $command -XmlDataFiles $DataLoadFiles 
-
-$output += @"
+$EndTransaction = @"
 IF @@ERROR <> 0 AND @@TRANCOUNT >  0 WHILE @@TRANCOUNT>0 
 BEGIN
     PRINT N'ROLLBACK'
@@ -64,4 +33,27 @@ GO
 "@
 
 
-$output | Set-Content $testFile
+$IntegratedConnectString = 'Data Source={0}; Initial Catalog={1}; Integrated Security=True;MultipleActiveResultSets=False;Application Name="SQL Management"'
+
+$connectionString = $IntegratedConnectString -f $TargetServerName,$TargetDatabaseName
+$connection = [System.Data.SqlClient.SqlConnection]::new($connectionString)
+$connection.Open()
+
+try
+{
+    $DataLoadFiles = Get-ChildItem -Path ".\DataFiles" 
+
+    $output = @()
+    $output += $BeginTransaction
+    $output += Get-FKSql -connection $connection -XmlDataFiles $DataLoadFiles -Disable
+    $output += get-XmlInsertSql -connection $connection -XmlDataFiles $DataLoadFiles -IncludTimestamps
+    $output += Get-FKSql -connection $connection -XmlDataFiles $DataLoadFiles 
+    $output += $EndTransaction
+
+    $output | Set-Content $OutputFile
+}
+finally
+{
+    $connection.Close()
+}
+
