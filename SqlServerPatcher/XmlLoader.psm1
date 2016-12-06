@@ -191,6 +191,80 @@ GO
 
 # ----------------------------------------------------------------------------------------------
 
+class TableColumn
+{
+    [string] $ColumnName
+    [string] $ColumnType
+    [int$ColumnMaxLength
+    
+    TableCoumn([string] $ColumnName, [string] $columnType, [int]$columnMaxLength)
+    {
+        $this.ColumnName = '[' + $ColumnName + ']'
+        $this.ColumnType = $columnType
+        $this.ColumnMaxLength = $columnMaxLength
+    }
+
+    [bool]IsTimeStamp()
+    {
+        return $this.ColumnType -eq 'TIMESTAMP'
+    }
+
+    [string] GetXmlColumnDef()
+    {
+        if (($this.ColumnMaxLength -is [System.DBNull]) -or ($this.ColumnType -in @('image','ntext','text')))
+        { 
+            $ColumnDataLength = ''
+        }
+        elseif ($this.ColumnMaxLength -eq -1) 
+        {
+            $ColumnDataLength = '(MAX)'
+        }
+        else 
+        {
+            $ColumnDataLength = "($($this.ColumnMaxLength))"
+        }
+
+        return "{0} {1}{2}" -f $this.ColumnName,$this.ColumnType,$ColumnDataLength
+    }
+}
+
+# ----------------------------------------------------------------------------------------------
+
+class TableColumns
+{
+    [XmlDataFile]$XmlDataFile
+    [array]$TableColumn
+
+    # Constructor
+    # --------------------------------------------------------------------
+    TableColumns([System.Data.Common.DbConnection]$Connection,[XmlDataFile]$XmlDataFile,$FksToTableQuery,$TableDefinitionSQL)
+    {
+        [System.Data.SqlClient.sqlCommand]$command = New-Object System.Data.SqlClient.sqlCommand
+        $command.Connection = $Connection 
+        $command.CommandText = $FksToTableQuery -f $xmlDataFile.Schema,$xmlDataFile.TableName
+
+        $this.xmlDataFile = $xmlDataFile
+
+        $this.ColumnNames = @()
+        $this.ColumnDataTypes = @()
+        $command.CommandText = $TableDefinitionSQL -f $xmlDataFile.Schema,$xmlDataFile.TableName
+        $sqlReader = $command.ExecuteReader()
+        try
+        {
+            while ($sqlReader.Read()) 
+            { 
+                $this.TableColumn = [TableColumn]::new($sqlReader["Column_Name"], $sqlReader["Data_Type"], $sqlReader["Character_Maximum_Length"])
+            }
+        }
+        finally
+        {
+            $sqlReader.Close()
+        }
+    }
+}
+
+# ----------------------------------------------------------------------------------------------
+
 #region Data Load Functions
 ##############################################################################################################
 # Generates SQL to Disable or Enable FKs to all XmlDataInfos
