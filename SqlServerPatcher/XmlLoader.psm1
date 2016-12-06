@@ -77,7 +77,7 @@ EXEC sp_xml_removedocument @DocHandle
 
 #endregion
 
-# ----------------------------------------------------------------------------------------------
+##############################################################################################################
 
 class XmlDataFile
 {
@@ -94,6 +94,7 @@ class XmlDataFile
     [string]$TableFullName
    
     # Constructor
+    # --------------------------------------------------------------------
     XmlDataFile([System.IO.FileInfo]$fileInfo)
     {
         $this.Filename= $fileInfo.Name
@@ -108,12 +109,14 @@ class XmlDataFile
         $this.TableFullName = "[{0}].[{1}]" -f $this.Schema, $this.TableName
     }
 
+    # --------------------------------------------------------------------
     [string] FileContent()
     {
         return (Get-Content $this.FullFilename | Out-String | %{$_.Replace("'","''")}).trim()
     }
 }
 
+##############################################################################################################
 class FksToTable
 {
 
@@ -133,7 +136,9 @@ GO
 
     [XmlDataFile]$XmlDataFile
     [array]$ForeignKeys
+
     # Constructor
+    # --------------------------------------------------------------------
     FksToTable([System.Data.Common.DbConnection]$Connection,[XmlDataFile]$XmlDataFile,$FksToTableQuery)
     {
         [System.Data.SqlClient.sqlCommand]$command = New-Object System.Data.SqlClient.sqlCommand
@@ -148,10 +153,11 @@ GO
         {
             while ($sqlReader.Read()) 
             { 
-                $this.ForeignKeys += @{ Schema = $sqlReader["Table_Schema"]
-                                        TableName = $sqlReader["Table_Name"]
-                                        ConstraintName = $sqlReader["Constraint_Name"]
-                                      }
+                $fk = @{}
+                $fk.Schema         = $sqlReader["Table_Schema"]
+                $fk.TableName      = $sqlReader["Table_Name"]
+                $fk.ConstraintName = $sqlReader["Constraint_Name"]
+                $this.ForeignKeys += $fk
             }
         }
         finally
@@ -160,6 +166,7 @@ GO
         }
     }
     
+    # --------------------------------------------------------------------
     hidden [string] GenerateFKs($ActionStr,$CheckString)
     {
         $result = @()
@@ -171,6 +178,7 @@ GO
         return $result
     }
 
+    # --------------------------------------------------------------------
     [string] GetEnableFKsSql()
     {
         return $this.GenerateFKs('Enable','WITH CHECK CHECK')
@@ -184,7 +192,7 @@ GO
 # ----------------------------------------------------------------------------------------------
 
 #region Data Load Functions
-# ----------------------------------------------------------------------------------------------
+##############################################################################################################
 # Generates SQL to Disable or Enable FKs to all XmlDataInfos
 function Get-FKSql($connection, $XmlDataFiles, [switch]$Disable)
 {
@@ -204,7 +212,7 @@ function Get-FKSql($connection, $XmlDataFiles, [switch]$Disable)
 
 Export-ModuleMember -Function Get-FKSql
 
-# ----------------------------------------------------------------------------------------------
+##############################################################################################################
 function Get-XmlInsertSql($connection, $XmlDataFiles,[switch]$IncludTimestamps)
 {
     $command = New-Object System.Data.SqlClient.sqlCommand
