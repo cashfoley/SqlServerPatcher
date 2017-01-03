@@ -195,7 +195,7 @@ class TableColumn
 {
     [string] $ColumnName
     [string] $ColumnType
-    [int$ColumnMaxLength
+    [int] $ColumnMaxLength
     
     TableCoumn([string] $ColumnName, [string] $columnType, [int]$columnMaxLength)
     {

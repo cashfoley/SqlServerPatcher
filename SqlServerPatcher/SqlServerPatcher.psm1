@@ -25,8 +25,8 @@ THE SOFTWARE.
 "@
 #endregion
 
-$SqlServerPatcherDacPacPath = Join-Path $PSScriptRoot 'SqlServerPatcherDacPac'
-Import-Module $SqlServerPatcherDacPacPath -Force
+#$SqlServerPatcherDacPacPath = Join-Path $PSScriptRoot 'SqlServerPatcherDacPac'
+#Import-Module $SqlServerPatcherDacPacPath -Force
 
 $XmlLoaderPath = Join-Path $PSScriptRoot 'XmlLoader.psm1'
 Import-Module $XmlLoaderPath -Force
@@ -364,9 +364,7 @@ Class PatchContext
     [string] $OutFolderPath
 
     PatchContext( 
-          [string] $DBServerName
-        , [string] $DatabaseName
-        , [string] $Release
+          [string] $Release
         , [string] $RootFolderPath
         , [string] $OutFolderPathParm
         , [string] $EnvironmentParm
@@ -385,8 +383,6 @@ Class PatchContext
         $this.SqlConstants = $LoadSqlConstants
 
 
-        $this.DBServerName = $DBServerName
-        $this.DatabaseName = $DatabaseName
         $this.Release      = $Release
         $this.DefaultCommandTimeout = 180
         
@@ -397,11 +393,22 @@ Class PatchContext
         
         $this.RootFolderPath = Join-Path $RootFolderPath '\'  # assure consitent \ on root folder name
         
-        # Initialize Connection
-        $IntegratedConnectionString = 'Data Source={0}; Initial Catalog={1}; Integrated Security=True;MultipleActiveResultSets=False;Application Name="SQL Management"'
+        $this.OutFolderPath = Join-Path $OutFolderPathParm (get-date -Format yyyy-MM-dd-HH.mm.ss.fff)
+        if (! (Test-Path $this.OutFolderPath -PathType Container) )
+        {
+            mkdir $this.OutFolderPath | Out-Null
+        }
+        $this.OutFolderPath = Resolve-Path $this.OutFolderPath
+    }
+
+    [void] Connect([securestring] $ConnectionString)
+    {
         $this.Connection = (New-Object 'System.Data.SqlClient.SqlConnection')
-        $this.Connection.ConnectionString = $IntegratedConnectionString -f $DBServerName,$DatabaseName
+        $this.Connection.ConnectionString = Get-SecureStringAsPlainText $ConnectionString
         $this.Connection.Open()
+
+        $this.DBServerName = $this.Connection.DataSource
+        $this.DatabaseName = $this.Connection.Database
 
         ## Attach the InfoMessage Event Handler to the connection to write out the messages 
         $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler] {
@@ -415,13 +422,13 @@ Class PatchContext
         $this.Connection.FireInfoMessageEventOnUserErrors = $false;
 
         $this.SqlCommand = $this.NewSqlCommand()
-
-        $this.OutFolderPath = Join-Path $OutFolderPathParm (get-date -Format yyyy-MM-dd-HH.mm.ss.fff)
-        if (! (Test-Path $this.OutFolderPath -PathType Container) )
-        {
-            mkdir $this.OutFolderPath | Out-Null
-        }
-        $this.OutFolderPath = Resolve-Path $this.OutFolderPath
+    }
+    
+    [void] Connect([string] $ServerName, [string] $DatabaseName)
+    {
+        $IntegratedConnectionString = 'Data Source={0}; Initial Catalog={1}; Integrated Security=True;MultipleActiveResultSets=False;Application Name="SQL Management"' -f $ServerName, $DatabaseName `
+             | ConvertTo-SecureString -AsPlainText -Force
+        $this.Connect($IntegratedConnectionString)
     }
 
     # ----------------------------------------------------------------------------------
@@ -1271,7 +1278,7 @@ function Get-SqlServerPatcherDbObjects
       [switch] $All
     , [switch] $Views
     , [switch] $Tables
-    , [switch] $StoredProcs
+    , [switch] $StoredPr333ocs
     , [switch] $Functions
     , [switch] $ShowSqlServerPatcher
     )
@@ -1291,6 +1298,19 @@ function Get-SqlServerPatcherDbObjects
                      ($StoredProcs -and ($_.Type -eq 'P')) -or 
                      ($Functions -and (($_.Type -eq 'FN' -or ($_.Type -eq 'IF')))) -and
                      (($_.SchemaName -ne 'SqlServerPatcher') -or $ShowSqlServerPatcher) }
+}
+
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+function Get-SecureStringAsPlainText
+{
+    param (
+      [Parameter(Mandatory=$true)] [securestring] $SecureString
+    )
+
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
+    return [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
 }
 
 # ----------------------------------------------------------------------------------
@@ -1360,16 +1380,15 @@ function Initialize-SqlServerPatcher
       [ValidateNotNull()]
       [ValidateNotNullOrEmpty()][string]$DatabaseName
 
-    , [Parameter(Mandatory=$true)]
-      [SqlDacMajorVersion]$SqlDacVersion
+    #, [SqlDacMajorVersion]$SqlDacVersion
 
     , [Parameter(Mandatory=$true)]
       [string]$Release
 
-    #, [Parameter(Mandatory=$true,Position=0,ParameterSetName='Parameter Connection String')]
-    #  [ValidateNotNull()]
-    #  [ValidateNotNullOrEmpty()]
-    #  [string]$ConnectionString
+    , [Parameter(Mandatory=$true,Position=0,ParameterSetName='Parameter Connection String')]
+      [ValidateNotNull()]
+      [ValidateNotNullOrEmpty()]
+      [securestring]$ConnectionString
 
     , [string]$RootFolderPath
     , [string]$Environment
@@ -1399,8 +1418,17 @@ function Initialize-SqlServerPatcher
         $null = mkdir $OutFolderPath
     }
     
-    $script:PatchContext = [PatchContext]::new($ServerName,$DatabaseName,$Release,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$Checkpoint)
+    $script:PatchContext = [PatchContext]::new($Release,$RootFolderPath,$OutFolderPath,$Environment,$PatchFileInitializationScript,$Checkpoint)
     
+    if (![string]::IsNullOrEmpty($ConnectionString))
+    {
+        $PatchContext.Connect($ConnectionString)
+    }
+    else
+    {
+        $PatchContext.Connect($ServerName, $DatabaseName)
+    }
+
     $PatchContext.DisplayCallstack = $DisplayCallStack
     $PatchContext.LogSqlOutScreen = $EchoSql
     $PatchContext.SqlLogFile = $SqlLogFile
@@ -1412,7 +1440,7 @@ function Initialize-SqlServerPatcher
 
     $PatchContext.PerformPatchFileInitializationScript()
 
-    Initialize-SqlServerPatcherDacPac -sqlserverVersion $SqlDacVersion -Connection $PatchContext.Connection
+    # Initialize-SqlServerPatcherDacPac -sqlserverVersion $SqlDacVersion -Connection $PatchContext.Connection
 
     # AssureSqlServerPatcher
 }
@@ -1468,3 +1496,5 @@ Export-ModuleMember -Function Get-ExecutablePatches
 Export-ModuleMember -Function Add-TokenReplacemen
 Export-ModuleMember -Function Test-SqlServerRollback
 Export-ModuleMember -Function Initialize-SqlServerPatcher
+
+Export-ModuleMember -Function Get-SecureStringAsPlainText

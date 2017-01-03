@@ -168,3 +168,5 @@ AppPackages/
 
 TestOutput
 /Tests/Tests/Northwind/NorthWind/SqlPatcher/Output/
+/Tests/Tests/AdventureWorksLT/Database.AdventureWorksLT.jfm
+/Tests/Tests/AdventureWorksLT/Database.AdventureWorksLT.dbmdl

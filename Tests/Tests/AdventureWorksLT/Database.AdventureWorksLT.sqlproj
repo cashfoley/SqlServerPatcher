@@ -67,6 +67,10 @@
     <Folder Include="dbo\User Defined Types\" />
     <Folder Include="Security\" />
     <Folder Include="SalesLT\Sequences\" />
+    <Folder Include="SqlServerPatcher" />
+    <Folder Include="SqlServerPatcher\Azure" />
+    <Folder Include="SqlServerPatcher\Patches" />
+    <Folder Include="SqlServerPatcher\Patches\01_InitialSchema" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="dbo\Tables\ErrorLog.sql" />
@@ -97,5 +101,11 @@
     <Build Include="dbo\User Defined Types\AccountNumber.sql" />
     <Build Include="Security\SalesLT.sql" />
     <Build Include="SalesLT\Sequences\SalesOrderNumber.sql" />
+    <Build Include="SqlServerPatcher\Patches\01_InitialSchema\01_dbo_InitialObjects.sql" />
+    <Build Include="SqlServerPatcher\Patches\01_InitialSchema\02_SalesLT_InitialObjects.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="SqlServerPatcher\Azure\Deploy-AzureResourceGroup.ps1" />
+    <None Include="SqlServerPatcher\Azure\AdventureWorksDB.json" />
   </ItemGroup>
 </Project>
