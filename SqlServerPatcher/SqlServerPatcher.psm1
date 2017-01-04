@@ -1278,7 +1278,7 @@ function Get-SqlServerPatcherDbObjects
       [switch] $All
     , [switch] $Views
     , [switch] $Tables
-    , [switch] $StoredPr333ocs
+    , [switch] $StoredProcs
     , [switch] $Functions
     , [switch] $ShowSqlServerPatcher
     )
